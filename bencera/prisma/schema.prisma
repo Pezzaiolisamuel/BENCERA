@@ -1,0 +1,38 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Item {
+  id                   String   @id @default(uuid())
+  updatedAt            DateTime @updatedAt
+
+  name                 String
+  type                 String
+  category             String
+
+  availableColors      String
+  matchingPalette      String
+
+  imagesAbove          String
+  imagesDetailed       String
+  imagesBackground     String
+  imagesHowToUse       String
+
+  shortDescription     String
+  longDescription      String
+
+  collectionName       String
+  season               String
+
+  sizes                String
+  productsInCollection Int
+
+  unique               Boolean
+  handmade             Boolean
+  material             String
+}
