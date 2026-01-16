@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 
 interface CanvasProps {
@@ -15,227 +15,344 @@ const Canvas = React.forwardRef<HTMLDivElement, CanvasProps>(
     const canvasWidth = 3000;
     const canvasHeight = 2000;
 
-    const extendedItems: any[] = [];
-    while (extendedItems.length < totalItems) {
-      extendedItems.push(...items);
-    }
-    const itemsToRender = extendedItems.slice(0, totalItems);
+    const itemsToRender = useMemo(() => {
+      const extended: any[] = [];
+      while (extended.length < totalItems) extended.push(...items);
+      return extended.slice(0, totalItems);
+    }, [items]);
 
     const itemData = useRef<{ size: number; top: number; left: number }[]>([]);
     const [ready, setReady] = useState(false);
 
-    // Persistent drag state
-    const posX = useRef(0);
-    const posY = useRef(0);
+    // camera + drag
+    const camera = useRef({ x: 0, y: 0, scale: 1 });
+    const drag = useRef({
+      active: false,
+      pointerId: -1,
+      startX: 0,
+      startY: 0,
+      lastX: 0,
+      lastY: 0,
+      vx: 0,
+      vy: 0,
+      moved: false,
+    });
 
+    // quick setters + applyCamera ref so buttons can use it
+    const setters = useRef<{
+      setX?: (v: number) => void;
+      setY?: (v: number) => void;
+      setScale?: (v: number) => void;
+      applyCamera?: () => void;
+    }>({});
+
+    /**
+     * 1) Layout (no randomness, square tiles, safe spacing)
+     */
     useEffect(() => {
       if (!ref || !("current" in ref) || !ref.current) return;
-      const el = ref.current;
 
-      const rowCount = 10;
+      const rowCount = Math.ceil(totalItems / itemsPerRow);
+
       const ySpacing = canvasHeight / (rowCount + 1);
       const oddSpacing = canvasWidth / (itemsPerRow + 1);
+
+      // cell sizes based on spacing; use factor to avoid overlap
+      const cellW = canvasWidth / (itemsPerRow + 1);
+      const cellH = canvasHeight / (rowCount + 1);
+      const squareSize = Math.floor(Math.min(cellW, cellH) * 0.6); // tweak 0.55-0.75
 
       itemData.current = itemsToRender.map((_, idx) => {
         const row = Math.floor(idx / itemsPerRow);
         const col = idx % itemsPerRow;
-        const size = Math.floor(Math.random() * 101) + 50;
 
+        const size = squareSize;
+
+        const centerY = ySpacing * (row + 1);
         let centerX: number;
-        let centerY: number = ySpacing * (row + 1);
 
         if (row % 2 === 0) {
           centerX = oddSpacing * (col + 1);
         } else {
-          const xStart = (oddSpacing + oddSpacing * 2) / 2;
-          const xEnd = canvasWidth;
+          const xStart = oddSpacing / 2;
+          const xEnd = canvasWidth - oddSpacing / 2;
           const evenSpacing = (xEnd - xStart) / (itemsPerRow - 1);
           centerX = xStart + col * evenSpacing;
         }
 
-        const left = centerX - size / 2;
-        const top = centerY - size / 2;
-
-        return { size, left, top };
+        return {
+          size,
+          left: centerX - size / 2,
+          top: centerY - size / 2,
+        };
       });
 
       setReady(true);
+    }, [itemsToRender, ref]);
 
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
+    /**
+     * 2) Fit canvas to viewport (cover) and start at TOP-RIGHT
+     */
+    useEffect(() => {
+      if (!ready) return;
+      if (!ref || !("current" in ref) || !ref.current) return;
 
-      const scale = Math.min(vw / canvasWidth, vh / canvasHeight);
+      const el = ref.current;
 
-      posX.current = (vw - canvasWidth * scale) / 2;
-      posY.current = (vh - canvasHeight * scale) / 2;
-
-      // Prevent flash
-      gsap.set(el, { x: posX.current, y: posY.current, scale });
-
-      // Smooth intro
-      gsap.to(el, { duration: 0.6, ease: "power3.out" });
-
-      // DRAG LOGIC
-      let isDown = false;
-      let startX = 0;
-      let startY = 0;
-      let moved = false;
-      const DRAG_THRESHOLD = 3;
-
-      let dragTween: gsap.core.Tween | null = null;
-
-      const pointerDown = (e: any) => {
-        isDown = true;
-        moved = false;
-
-        if (dragTween) dragTween.kill();
-
-        const p = e.touches ? e.touches[0] : e;
-        startX = p.clientX - posX.current;
-        startY = p.clientY - posY.current;
-      };
-
-      const pointerMove = (e: any) => {
-        if (!isDown) return;
-
-        const p = e.touches ? e.touches[0] : e;
-
-        const newX = p.clientX - startX;
-        const newY = p.clientY - startY;
-
-        const dx = newX - posX.current;
-        const dy = newY - posY.current;
-
-        if (!moved && Math.sqrt(dx * dx + dy * dy) > DRAG_THRESHOLD) {
-          moved = true;
-        }
-
-        if (!moved) return;
-
-        posX.current = newX;
-        posY.current = newY;
-
-        dragTween = gsap.to(el, {
-          x: posX.current,
-          y: posY.current,
-          duration: 0.18,
-          ease: "power3.out",
-          overwrite: "auto"
-        });
-      };
-
-      const pointerUp = () => {
-        if (!moved) {
-          isDown = false;
-          return;
-        }
-
-        if (dragTween) dragTween.progress(1);
-
-        isDown = false;
-      };
-
-      el.addEventListener("mousedown", pointerDown);
-      el.addEventListener("mousemove", pointerMove);
-      el.addEventListener("mouseup", pointerUp);
-      el.addEventListener("mouseleave", pointerUp);
-      el.addEventListener("touchstart", pointerDown);
-      el.addEventListener("touchmove", pointerMove);
-      el.addEventListener("touchend", pointerUp);
-      el.addEventListener("touchcancel", pointerUp);
-
-      // FULLY DISABLE ZOOM + SCROLL = DRAG
-      const wheelBlocker = (e: WheelEvent) => {
-        // Prevent browser zoom (ctrl+wheel)
-        if (e.ctrlKey) {
-          e.preventDefault();
-          return;
-        }
-
-        e.preventDefault();
-
-        // Scroll = drag
-        posX.current -= e.deltaX;
-        posY.current -= e.deltaY;
-
-        gsap.to(el, {
-          x: posX.current,
-          y: posY.current,
-          duration: 0.15,
-          ease: "power2.out",
-          overwrite: "auto"
-        });
-      };
-
-      window.addEventListener("wheel", wheelBlocker, { passive: false });
-      document.addEventListener("wheel", wheelBlocker, { passive: false });
-      el.addEventListener("wheel", wheelBlocker, { passive: false });
-
-      // ZOOM BUTTONS
-      const zoomStep = 0.2;
-
-      const applyZoom = (newScale: number) => {
+      const applyFit = () => {
         const vw = window.innerWidth;
         const vh = window.innerHeight;
 
-        const targetX = (vw - canvasWidth * newScale) / 2;
-        const targetY = (vh - canvasHeight * newScale) / 2;
+        const scale = Math.max(vw / canvasWidth, vh / canvasHeight);
 
-        gsap.to(el, {
-          scale: newScale,
-          x: targetX,
-          y: targetY,
-          duration: 0.4,
-          ease: "power3.out",
-          onUpdate: () => {
-            posX.current = gsap.getProperty(el, "x") as number;
-            posY.current = gsap.getProperty(el, "y") as number;
-          }
-        });
+        // TOP-RIGHT start
+        const x = vw - canvasWidth * scale;
+        const y = 0;
+
+        camera.current = { x, y, scale };
+        gsap.set(el, { x, y, scale });
       };
 
-      const zoomInBtn = document.getElementById("zoom-in");
-      const zoomOutBtn = document.getElementById("zoom-out");
+      applyFit();
+      window.addEventListener("resize", applyFit);
+      return () => window.removeEventListener("resize", applyFit);
+    }, [ready, ref]);
 
-      zoomInBtn?.addEventListener("click", () => {
-        const currentScale = gsap.getProperty(el, "scale") as number;
-        applyZoom(currentScale + zoomStep);
-      });
-
-      zoomOutBtn?.addEventListener("click", () => {
-        const currentScale = gsap.getProperty(el, "scale") as number;
-        applyZoom(Math.max(0.2, currentScale - zoomStep));
-      });
-
-      return () => {
-        window.removeEventListener("wheel", wheelBlocker);
-        document.removeEventListener("wheel", wheelBlocker);
-        el.removeEventListener("wheel", wheelBlocker);
-      };
-    }, [itemsToRender, ref]);
-
-    // Animate each container from its center to its final top-left
+    /**
+     * 3) Load-in (opacity/scale only; doesn't fight layout)
+     */
     useEffect(() => {
       if (!ready) return;
 
-      itemData.current.forEach((data, idx) => {
-        const el = document.querySelector(
-          `.item[data-idx="${idx}"]`
-        ) as HTMLElement | null;
-        if (!el) return;
+      const nodes = Array.from(document.querySelectorAll<HTMLElement>(".item"));
+      if (!nodes.length) return;
 
-        const { size, top, left } = data;
-
-        gsap.to(el, {
-          width: size,
-          height: size,
-          top,
-          left,
-          duration: 0.5,
-          ease: "power2.out",
-        });
-      });
+      gsap.killTweensOf(nodes);
+      gsap.fromTo(
+        nodes,
+        { opacity: 0, scale: 0.7, transformOrigin: "50% 50%" },
+        {
+          opacity: 1,
+          scale: 1,
+          duration: 0.35,
+          stagger: 0.01,
+          ease: "back.out(1.6)",
+        }
+      );
     }, [ready]);
+
+    /**
+     * 4) Drag + inertia + wrap + initialize quickSetters
+     */
+    useEffect(() => {
+      if (!ready) return;
+      if (!ref || !("current" in ref) || !ref.current) return;
+
+      const el = ref.current;
+
+      const setX = gsap.quickSetter(el, "x", "px") as (v: number) => void;
+      const setY = gsap.quickSetter(el, "y", "px") as (v: number) => void;
+      const setScale = gsap.quickSetter(el, "scale") as (v: number) => void;
+
+      setters.current.setX = setX;
+      setters.current.setY = setY;
+      setters.current.setScale = setScale;
+
+      const wrapCamera = () => {
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+
+        const scaledW = canvasWidth * camera.current.scale;
+        const scaledH = canvasHeight * camera.current.scale;
+
+        const minX = -scaledW - vw;
+        const maxX = vw;
+        while (camera.current.x < minX) camera.current.x += scaledW;
+        while (camera.current.x > maxX) camera.current.x -= scaledW;
+
+        const minY = -scaledH - vh;
+        const maxY = vh;
+        while (camera.current.y < minY) camera.current.y += scaledH;
+        while (camera.current.y > maxY) camera.current.y -= scaledH;
+      };
+
+      const applyCamera = () => {
+        wrapCamera();
+        setScale(camera.current.scale);
+        setX(camera.current.x);
+        setY(camera.current.y);
+      };
+
+      setters.current.applyCamera = applyCamera;
+
+      const onPointerDown = (e: PointerEvent) => {
+        if (e.button !== undefined && e.button !== 0) return;
+
+        drag.current.active = true;
+        drag.current.pointerId = e.pointerId;
+        drag.current.startX = e.clientX;
+        drag.current.startY = e.clientY;
+        drag.current.lastX = e.clientX;
+        drag.current.lastY = e.clientY;
+        drag.current.vx = 0;
+        drag.current.vy = 0;
+        drag.current.moved = false;
+
+        (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+        gsap.killTweensOf(camera.current);
+      };
+
+      const onPointerMove = (e: PointerEvent) => {
+        if (!drag.current.active || e.pointerId !== drag.current.pointerId) return;
+
+        const dx = e.clientX - drag.current.lastX;
+        const dy = e.clientY - drag.current.lastY;
+
+        const totalDx = e.clientX - drag.current.startX;
+        const totalDy = e.clientY - drag.current.startY;
+        if (!drag.current.moved && (Math.abs(totalDx) > 6 || Math.abs(totalDy) > 6)) {
+          drag.current.moved = true;
+        }
+
+        drag.current.lastX = e.clientX;
+        drag.current.lastY = e.clientY;
+
+        drag.current.vx = drag.current.vx * 0.8 + dx * 0.2;
+        drag.current.vy = drag.current.vy * 0.8 + dy * 0.2;
+
+        camera.current.x += dx;
+        camera.current.y += dy;
+
+        applyCamera();
+      };
+
+      const onPointerUp = (e: PointerEvent) => {
+        if (!drag.current.active || e.pointerId !== drag.current.pointerId) return;
+
+        drag.current.active = false;
+
+        // click: no inertia, no wrap snap
+        if (!drag.current.moved) {
+          drag.current.pointerId = -1;
+          return;
+        }
+
+        const speed = Math.hypot(drag.current.vx, drag.current.vy);
+        if (speed < 0.1) {
+          drag.current.pointerId = -1;
+          return;
+        }
+
+        const inertiaX = camera.current.x + drag.current.vx * 18;
+        const inertiaY = camera.current.y + drag.current.vy * 18;
+
+        gsap.to(camera.current, {
+          x: inertiaX,
+          y: inertiaY,
+          duration: 0.9,
+          ease: "power3.out",
+          onUpdate: applyCamera,
+        });
+
+        drag.current.pointerId = -1;
+      };
+
+      // critical: prevents browser gesture scrolling/zooming on touch devices
+      el.style.touchAction = "none";
+
+      el.addEventListener("pointerdown", onPointerDown);
+      window.addEventListener("pointermove", onPointerMove);
+      window.addEventListener("pointerup", onPointerUp);
+      window.addEventListener("pointercancel", onPointerUp);
+
+      return () => {
+        el.removeEventListener("pointerdown", onPointerDown);
+        window.removeEventListener("pointermove", onPointerMove);
+        window.removeEventListener("pointerup", onPointerUp);
+        window.removeEventListener("pointercancel", onPointerUp);
+      };
+    }, [ready, ref]);
+
+    /**
+     * 5) HARD BLOCK browser zoom + scroll gestures (wheel, pinch, keyboard)
+     *    This prevents the *page* zoom; you’ll zoom only via our buttons.
+     */
+    useEffect(() => {
+      const blockWheel = (e: WheelEvent) => {
+        // block scroll + ctrl/cmd zoom
+        e.preventDefault();
+      };
+
+      const blockKeyZoom = (e: KeyboardEvent) => {
+        const isMac = navigator.platform.toLowerCase().includes("mac");
+        const mod = isMac ? e.metaKey : e.ctrlKey;
+
+        if (!mod) return;
+
+        // Ctrl/Cmd + + / - / 0
+        if (e.key === "+" || e.key === "=" || e.key === "-" || e.key === "0") {
+          e.preventDefault();
+        }
+      };
+
+      // Safari gesture events
+      const blockGesture = (e: Event) => e.preventDefault();
+
+      window.addEventListener("wheel", blockWheel, { passive: false, capture: true });
+      document.addEventListener("wheel", blockWheel, { passive: false, capture: true });
+
+      window.addEventListener("keydown", blockKeyZoom, { capture: true });
+
+      document.addEventListener("gesturestart", blockGesture as any, { passive: false });
+      document.addEventListener("gesturechange", blockGesture as any, { passive: false });
+      document.addEventListener("gestureend", blockGesture as any, { passive: false });
+
+      return () => {
+        window.removeEventListener("wheel", blockWheel as any, true as any);
+        document.removeEventListener("wheel", blockWheel as any, true as any);
+
+        window.removeEventListener("keydown", blockKeyZoom as any, true as any);
+
+        document.removeEventListener("gesturestart", blockGesture as any);
+        document.removeEventListener("gesturechange", blockGesture as any);
+        document.removeEventListener("gestureend", blockGesture as any);
+      };
+    }, []);
+
+    /**
+     * Center-anchored zoom helper (keeps focus at screen center)
+     */
+    const zoomTo = (nextScale: number) => {
+      const applyCamera = setters.current.applyCamera;
+      if (!applyCamera) return;
+
+      const cx = window.innerWidth / 2;
+      const cy = window.innerHeight / 2;
+
+      const s1 = camera.current.scale;
+      const s2 = nextScale;
+
+      const wx = (cx - camera.current.x) / s1;
+      const wy = (cy - camera.current.y) / s1;
+
+      camera.current.scale = s2;
+      camera.current.x = cx - wx * s2;
+      camera.current.y = cy - wy * s2;
+
+      applyCamera();
+    };
+
+    const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+
+    const onZoomIn = () => {
+      const next = clamp(camera.current.scale * 1.12, 0.2, 4);
+      zoomTo(next);
+    };
+
+    const onZoomOut = () => {
+      const next = clamp(camera.current.scale / 1.12, 0.2, 4);
+      zoomTo(next);
+    };
 
     return (
       <>
@@ -246,6 +363,7 @@ const Canvas = React.forwardRef<HTMLDivElement, CanvasProps>(
             position: "absolute",
             width: canvasWidth,
             height: canvasHeight,
+            transformOrigin: "top left",
           }}
         >
           {ready &&
@@ -253,75 +371,91 @@ const Canvas = React.forwardRef<HTMLDivElement, CanvasProps>(
               const data = itemData.current[idx];
               if (!data) return null;
 
-              const { size, top, left } = data;
+              const img = item.images?.above?.[0];
 
               return (
                 <div
                   key={`${item.id}-${idx}`}
                   className="item"
                   data-idx={idx}
-                  onClick={() => onItemClick(item)}
+                  onClick={() => {
+                    if (drag.current.moved) return;
+                    onItemClick(item);
+                    drag.current.moved = false;
+                  }}
                   style={{
                     position: "absolute",
-                    width: "0px",
-                    height: "0px",
-                    top: `${top + size / 2}px`,
-                    left: `${left + size / 2}px`,
-                    borderRadius: "50%",
                     cursor: "pointer",
                     overflow: "hidden",
+                    top: data.top,
+                    left: data.left,
+                    width: data.size,
+                    height: data.size,
                   }}
                 >
-                  <div
-                    className="plate"
-                    style={{
-                      width: "100%",
-                      height: "100%",
-                      borderRadius: "50%",
-                      backgroundColor: `hsl(${Math.floor(
-                        Math.random() * 360
-                      )},70%,60%)`,
-                    }}
-                  ></div>
+                  {img ? (
+                    <img
+                      src={img}
+                      alt={item.name}
+                      draggable={false}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                        display: "block",
+                        userSelect: "none",
+                        pointerEvents: "none",
+                      }}
+                    />
+                  ) : null}
                 </div>
               );
             })}
         </div>
 
-        {/* ZOOM BUTTONS */}
+        {/* Zoom UI (fixed bottom-right) */}
         <div
           style={{
             position: "fixed",
-            bottom: "20px",
-            right: "20px",
+            right: 16,
+            bottom: 16,
             display: "flex",
             flexDirection: "column",
-            gap: "10px",
+            gap: 8,
             zIndex: 9999,
           }}
         >
           <button
-            id="zoom-in"
+            onClick={onZoomIn}
             style={{
-              width: "50px",
-              height: "50px",
-              borderRadius: "50%",
-              fontSize: "24px",
+              width: 44,
+              height: 44,
+              borderRadius: 12,
+              border: "1px solid rgba(255,255,255,0.2)",
+              background: "rgba(0,0,0,0.55)",
+              color: "white",
               cursor: "pointer",
+              fontSize: 18,
+              lineHeight: "44px",
             }}
+            aria-label="Zoom in"
           >
             +
           </button>
-
           <button
-            id="zoom-out"
+            onClick={onZoomOut}
             style={{
-              width: "50px",
-              height: "50px",
-              borderRadius: "50%",
-              fontSize: "24px",
+              width: 44,
+              height: 44,
+              borderRadius: 12,
+              border: "1px solid rgba(255,255,255,0.2)",
+              background: "rgba(0,0,0,0.55)",
+              color: "white",
               cursor: "pointer",
+              fontSize: 18,
+              lineHeight: "44px",
             }}
+            aria-label="Zoom out"
           >
             −
           </button>
