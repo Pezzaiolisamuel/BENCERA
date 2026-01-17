@@ -1,4 +1,5 @@
-html, body {
+html,
+body {
   margin: 0;
   padding: 0;
   height: 100%;
@@ -6,32 +7,62 @@ html, body {
   font-family: sans-serif;
 }
 
+/* Full-screen stage */
 #viewport {
-  width: 100vw;
-  height: 100vh;
+  position: fixed;
+  inset: 0;
   overflow: hidden;
-  background: #ddd;
-  position: relative;
-  display: flex;
-  flex-direction: row;
+  background: #ccc;
 }
 
+/* Nav stays on top */
 .nav {
   position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   height: 80px;
+
   display: flex;
   justify-content: space-between;
   align-items: center;
+
   padding: 0 30px;
   background: transparent;
   z-index: 20;
-  /* box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);  */
 }
 
+/* Main stage layer where Canvas lives */
+.main {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
 
+/* Let JS control width/height; just ensure anchor */
+.canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  cursor:  grab;
+
+  /* important: avoid CSS overriding your JS numbers */
+  width: auto;
+  height: auto;
+
+  background: #eeeeee;
+  will-change: transform;
+}
+
+/* Items remain absolute */
+.item {
+  position: absolute;
+  border-radius: 3px;
+   cursor:  grab;
+   overflow: visible;
+}
+
+/* Keep your existing styles */
 .logo {
   font-size: 2rem;
   font-weight: bold;
@@ -43,40 +74,46 @@ html, body {
   cursor: pointer;
 }
 
-.main {
-  display: flex;
-  height: 100%;
-  width: 100%;
-  position: relative;
-}
-
-#viewport, .main {
-  position: relative;
-  width: 100vw;
-  height: 100vh;
-  overflow: hidden;
-}
-
-
-
-.canvas {
-  position: absolute;
-  width: 300vw;
-  height: 200vh;
-  background: #ddd;
-  /* border: 1px solid red; */
-}
-
-.item {
-  position: absolute;
-  border-radius: 3px;
-  cursor: pointer;
-  /* border: 1px solid green; */
-}
-
 .plate {
   width: 100%;
   height: 100%;
   background-color: hsl(var(--h, 200), 70%, 60%);
+}
+
+
+.itemInner {
+  width: 100%;
+  height: 100%;
+
+  /* ✅ this is your “resting” visual scale (matches your GSAP final scale) */
+  transform: scale(0.9);
+
+  transform-origin: 50% 50%;
+  will-change: transform;
+
+  /* ✅ smooth slow grow/shrink */
+  transition: transform 1.6s cubic-bezier(0.19, 1, 0.22, 1);
+
+  /* keep clipping on the inner so image stays masked */
+  overflow: hidden;
+  border-radius: 3px; /* move rounding here (optional) */
+}
+
+.itemInner.is-near {
+  transform: scale(1.05);
+}
+
+
+.itemReveal {
+  opacity: 0;
+  transform: scale(0);
+  transform-origin: 50% 50%;
+  transition: transform 700ms cubic-bezier(.2,.8,.2,1), opacity 700ms ease;
+  will-change: transform, opacity;
+}
+
+.itemReveal.is-visible {
+  opacity: 1;
+  transform: scale(0.9); /* your base visual scale */
 }
 

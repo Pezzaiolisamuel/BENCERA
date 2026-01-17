@@ -8,15 +8,22 @@ import { useGalleryViewport } from "../app/hooks/useGalleryViewport";
 
 export default function GalleryViewport({ items }: any) {
   const canvasRef = useRef<HTMLDivElement>(null);
-  useGalleryViewport({ canvasRef });
+//   useGalleryViewport({ canvasRef });
 
   const [activeItem, setActiveItem] = useState(null);
 
   return (
-    <div id="viewport">
+    <div id="viewport" style={{ position: "fixed", inset: 0, overflow: "hidden" }}>
       <NavBar />
 
-      <div className="main">
+      <div
+        className="main"
+        style={{
+          position: "absolute",
+          inset: 0,
+          overflow: "hidden",
+        }}
+      >
         <DetailsPanel item={activeItem} onClose={() => setActiveItem(null)} />
         <Canvas ref={canvasRef} items={items} onItemClick={setActiveItem} />
       </div>
