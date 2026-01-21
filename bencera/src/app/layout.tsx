@@ -18,10 +18,7 @@ export default function RootLayout({
           padding: 0,
           height: "100vh",
           overflow: "hidden",
-          width: "device-width",
-          initialScale: 1,
-          maximumScale: 1,
-          userScalable: false,
+          width: "device-width"
         }}
       >
         {children}

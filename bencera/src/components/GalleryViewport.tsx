@@ -11,6 +11,7 @@ export default function GalleryViewport({ items }: any) {
 //   useGalleryViewport({ canvasRef });
 
   const [activeItem, setActiveItem] = useState(null);
+  
 
   return (
     <div id="viewport" style={{ position: "fixed", inset: 0, overflow: "hidden" }}>
@@ -22,6 +23,7 @@ export default function GalleryViewport({ items }: any) {
           position: "absolute",
           inset: 0,
           overflow: "hidden",
+          backgroundColor: "transparent",
         }}
       >
         <DetailsPanel item={activeItem} onClose={() => setActiveItem(null)} />

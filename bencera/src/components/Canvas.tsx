@@ -600,12 +600,10 @@ const Canvas = React.forwardRef<HTMLDivElement, CanvasProps>(
             return () => io.disconnect();
         }, [ready, itemsToRender]);
 
-
-
         /**
          * Center-anchored zoom helper (keeps focus at screen center)
          */
-        const zoomTo = (nextScale: number) => {
+        function zoomTo(nextScale: number) {
             const applyFocus = applyFocusRef.current;
             if (!applyFocus) return;
 
@@ -634,7 +632,7 @@ const Canvas = React.forwardRef<HTMLDivElement, CanvasProps>(
                 ease: "power3.out",
                 onUpdate: applyFocus,
             });
-        };
+        }
 
         const onZoomIn = () => {
             userInteracted.current = true;
