@@ -227,7 +227,9 @@ export default function DetailsPanel({ item, onClose }: any) {
       repeat: -1,
     });
 
-    return () => tween.kill();
+    return () => {
+      tween.kill();
+    };
   }, [item?.id, heroImage]);
 
   useEffect(() => {

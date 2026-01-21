@@ -96,12 +96,13 @@ export default function AdminPage() {
       const formData = new FormData(form);
 
       // Append images
-      [
+      const imageGroups = [
         ["imagesAbove", imagesAbove],
         ["imagesDetailed", imagesDetailed],
         ["imagesBackground", imagesBackground],
         ["imagesHowToUse", imagesHowToUse],
-      ].forEach(([key, list]) => {
+      ] satisfies Array<[string, ImagePreview[]]>;
+      imageGroups.forEach(([key, list]) => {
         list.forEach((img) => {
           formData.append(key, img.file);
         });
@@ -196,12 +197,16 @@ export default function AdminPage() {
         <label><input type="checkbox" name="handmade" /> Handmade</label>
 
         {/* IMAGE UPLOAD INPUTS */}
-        {[
-          ["Above", imagesAbove, setImagesAbove],
-          ["Detailed", imagesDetailed, setImagesDetailed],
-          ["Background", imagesBackground, setImagesBackground],
-          ["HowToUse", imagesHowToUse, setImagesHowToUse],
-        ].map(([label, list, setter]) => (
+        {(
+          [
+            ["Above", imagesAbove, setImagesAbove],
+            ["Detailed", imagesDetailed, setImagesDetailed],
+            ["Background", imagesBackground, setImagesBackground],
+            ["HowToUse", imagesHowToUse, setImagesHowToUse],
+          ] satisfies Array<
+            [string, ImagePreview[], React.Dispatch<React.SetStateAction<ImagePreview[]>>]
+          >
+        ).map(([label, list, setter]) => (
           <div key={label} style={{ marginTop: 15 }}>
             <h4>{label} Images</h4>
             <input
@@ -227,4 +232,3 @@ export default function AdminPage() {
     </main>
   );
 }
-

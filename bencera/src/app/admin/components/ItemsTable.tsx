@@ -25,12 +25,12 @@ export default function ItemsTable({ items, onDeleteClick }: ItemsTableProps) {
       prev.map((item) =>
         item.id === id
           ? {
-              ...item,
-              images: {
-                ...item.images,
-                [type]: value,
-              },
-            }
+            ...item,
+            images: {
+              ...item.images,
+              [type]: value,
+            },
+          }
           : item
       )
     );
@@ -96,43 +96,43 @@ export default function ItemsTable({ items, onDeleteClick }: ItemsTableProps) {
                 return (
                   <td key={type}>
                     {arr.map((url: string, idx: number) => (
-                        url ? (  // <-- only render if url is not empty
-                            <div key={idx} style={{ display: "flex", alignItems: "center", marginBottom: 5 }}>
-                            <img
-                                src={url}
-                                alt=""
-                                style={{
-                                width: 50,
-                                height: 50,
-                                objectFit: "cover",
-                                borderRadius: 5,
-                                marginRight: 5,
-                                }}
-                            />
-                            <input
-                                type="text"
-                                value={url}
-                                style={{ width: 120 }}
-                                onChange={(e) => {
-                                const newArr = [...arr];
-                                newArr[idx] = e.target.value;
-                                updateImageArray(item.id, type, newArr);
-                                }}
-                            />
-                            <button
-                                onClick={() => updateImageArray(item.id, type, arr.filter((_, i) => i !== idx))}
-                                style={{
-                                background: "transparent",
-                                border: "none",
-                                cursor: "pointer",
-                                marginLeft: 2,
-                                }}
-                            >
-                                <X size={14} />
-                            </button>
-                            </div>
-                        ) : null
-                        ))}
+                      url ? (  // <-- only render if url is not empty
+                        <div key={idx} style={{ display: "flex", alignItems: "center", marginBottom: 5 }}>
+                          <img
+                            src={url}
+                            alt=""
+                            style={{
+                              width: 50,
+                              height: 50,
+                              objectFit: "cover",
+                              borderRadius: 5,
+                              marginRight: 5,
+                            }}
+                          />
+                          <input
+                            type="text"
+                            value={url}
+                            style={{ width: 120 }}
+                            onChange={(e) => {
+                              const newArr = [...arr];
+                              newArr[idx] = e.target.value;
+                              updateImageArray(item.id, type, newArr);
+                            }}
+                          />
+                          <button
+                            onClick={() => updateImageArray(item.id, type, arr.filter((value: string, i: number) => i !== idx))}
+                            style={{
+                              background: "transparent",
+                              border: "none",
+                              cursor: "pointer",
+                              marginLeft: 2,
+                            }}
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ) : null
+                    ))}
 
                     <button onClick={() => updateImageArray(item.id, type, [...arr, ""])} style={{ marginTop: 2 }}>
                       + Add
