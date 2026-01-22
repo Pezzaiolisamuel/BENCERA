@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
+    "cloudinary": "^2.9.0",
     "formidable": "^3.5.4",
     "gsap": "^3.14.2",
     "lucide-react": "^0.562.0",
