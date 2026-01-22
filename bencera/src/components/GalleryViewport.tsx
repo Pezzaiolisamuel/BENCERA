@@ -7,6 +7,7 @@ import DetailsPanel from "./DetailsPanel";
 import { useGalleryViewport } from "../app/hooks/useGalleryViewport";
 
 export default function GalleryViewport({ items }: any) {
+  console.log("GalleryViewport items:", items?.length, items?.[0]);
   const canvasRef = useRef<HTMLDivElement>(null);
 //   useGalleryViewport({ canvasRef });
 
