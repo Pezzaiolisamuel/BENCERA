@@ -378,6 +378,9 @@ export default function AdminPage() {
 
             <Field label="Username">
               <input
+                id="admin-username"
+                name="username"
+                autoComplete="username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Enter username"
@@ -389,6 +392,9 @@ export default function AdminPage() {
 
             <Field label="Password">
               <input
+                id="admin-password"
+                name="password"
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter password"
@@ -397,6 +403,7 @@ export default function AdminPage() {
                 style={S.input}
               />
             </Field>
+
 
             <button type="submit" disabled={checkingAuth} style={S.button}>
               {checkingAuth ? "Checking..." : "Sign in"}
@@ -480,7 +487,7 @@ export default function AdminPage() {
           }}
         >
           {/* Left: Form */}
-          <section style={{ ...S.card, padding: 16, position: "sticky", top: 18 , overflow: "scroll", maxHeight: "60%" }}>
+          <section style={{ ...S.card, padding: 16, position: "sticky", top: 18, overflow: "scroll", maxHeight: "60%" }}>
             <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
               <div style={{ fontWeight: 900, fontSize: 16 }}>Create Item</div>
               <div style={{ fontSize: 12, opacity: 0.6 }}>
