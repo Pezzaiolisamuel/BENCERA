@@ -4,6 +4,33 @@ import { ItemSchema } from "@/validators/item";
 import { uploadFileToCloudinary } from "@/lib/cloudinary";
 import { deleteFromCloudinaryByUrl } from "@/lib/cloudinary-delete";
 
+import crypto from "crypto";
+
+function signSession(payload: string, secret: string) {
+  return crypto.createHmac("sha256", secret).update(payload).digest("hex");
+}
+
+function isAdminAuthed(req: Request) {
+  const secret = process.env.ADMIN_SESSION_SECRET || "";
+  if (!secret) return false;
+
+  const cookie = req.headers.get("cookie") || "";
+  const match = cookie.match(/admin_session=([^;]+)/);
+  if (!match) return false;
+
+  const raw = decodeURIComponent(match[1]);
+  const parts = raw.split("|");
+  if (parts.length !== 3) return false;
+
+  const role = parts[0]; // should be "admin"
+  const ts = parts[1];
+  const sig = parts[2];
+
+  const payload = `${role}|${ts}`;
+  const expected = signSession(payload, secret);
+
+  return expected === sig && role === "admin";
+}
 
 // Upload helper: files -> Cloudinary URLs
 async function filesToCloudinaryUrls(files: File[] | null, folder: string) {
@@ -11,7 +38,12 @@ async function filesToCloudinaryUrls(files: File[] | null, folder: string) {
   return Promise.all(files.map((f) => uploadFileToCloudinary(f, folder)));
 }
 
-export async function GET() {
+// ✅ FIX: GET must receive req if you use it
+export async function GET(req: Request) {
+  if (!isAdminAuthed(req)) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+  }
+
   try {
     const items = await prisma.item.findMany({
       orderBy: { updatedAt: "desc" },
@@ -27,22 +59,25 @@ export async function GET() {
 export async function POST(req: Request) {
   console.log("🔥 POST /api/items HIT");
 
+  if (!isAdminAuthed(req)) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+  }
+
   try {
     const formData = await req.formData();
     console.log("FORMDATA KEYS:", Array.from(formData.keys()));
 
-const dbg = (key: string) =>
-  formData.getAll(key).map((v) => {
-    // v can be File or string
-    if (typeof v === "string") return { kind: "string", len: v.length, head: v.slice(0, 30) };
-    return { kind: "file", name: v.name, type: v.type, size: v.size };
-  });
+    const dbg = (key: string) =>
+      formData.getAll(key).map((v) => {
+        if (typeof v === "string")
+          return { kind: "string", len: v.length, head: v.slice(0, 30) };
+        return { kind: "file", name: v.name, type: v.type, size: v.size };
+      });
 
-console.log("imagesDetailed:", dbg("imagesDetailed"));
-console.log("imagesAbove:", dbg("imagesAbove"));
-console.log("imagesBackground:", dbg("imagesBackground"));
-console.log("imagesHowToUse:", dbg("imagesHowToUse"));
-
+    console.log("imagesDetailed:", dbg("imagesDetailed"));
+    console.log("imagesAbove:", dbg("imagesAbove"));
+    console.log("imagesBackground:", dbg("imagesBackground"));
+    console.log("imagesHowToUse:", dbg("imagesHowToUse"));
 
     // Text fields
     const name = formData.get("name")?.toString() || "";
@@ -55,7 +90,7 @@ console.log("imagesHowToUse:", dbg("imagesHowToUse"));
     const productsInCollection = Number(formData.get("productsInCollection") || 0);
     const material = formData.get("material")?.toString() || "";
 
-    // Arrays (stored as JSON strings in DB)
+    // Arrays
     const availableColors =
       formData
         .get("availableColors")
@@ -99,12 +134,11 @@ console.log("imagesHowToUse:", dbg("imagesHowToUse"));
     ]);
 
     console.log("UPLOAD RESULT imagesAbove:", imagesAbove);
-console.log("UPLOAD RESULT imagesDetailed:", imagesDetailed);
-console.log("UPLOAD RESULT imagesBackground:", imagesBackground);
-console.log("UPLOAD RESULT imagesHowToUse:", imagesHowToUse);
+    console.log("UPLOAD RESULT imagesDetailed:", imagesDetailed);
+    console.log("UPLOAD RESULT imagesBackground:", imagesBackground);
+    console.log("UPLOAD RESULT imagesHowToUse:", imagesHowToUse);
 
-
-    // Validate (IMPORTANT: your ItemSchema should accept arrays of strings (URLs))
+    // Validate
     const data = ItemSchema.parse({
       name,
       type,
@@ -126,7 +160,7 @@ console.log("UPLOAD RESULT imagesHowToUse:", imagesHowToUse);
       material,
     });
 
-    // Save to DB (store arrays as JSON strings, like you already do)
+    // Save to DB
     const item = await prisma.item.create({
       data: {
         name: data.name,
@@ -173,6 +207,10 @@ function safeJsonParseArray(value: string | null | undefined): string[] {
 export async function DELETE(req: Request) {
   console.log("🗑️ DELETE /api/items HIT");
 
+  if (!isAdminAuthed(req)) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
@@ -181,14 +219,11 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "Missing item id" }, { status: 400 });
     }
 
-    // 1) Fetch item first to get image URLs
     const item = await prisma.item.findUnique({ where: { id } });
-
     if (!item) {
       return NextResponse.json({ error: "Item not found" }, { status: 404 });
     }
 
-    // 2) Collect all image URLs from the JSON-string columns
     const urls = [
       ...safeJsonParseArray(item.imagesAbove),
       ...safeJsonParseArray(item.imagesDetailed),
@@ -196,8 +231,6 @@ export async function DELETE(req: Request) {
       ...safeJsonParseArray(item.imagesHowToUse),
     ].filter(Boolean);
 
-    // 3) Delete images in Cloudinary (best effort)
-    // Only attempt delete for Cloudinary URLs
     const cloudinaryUrls = urls.filter((u) => u.includes("res.cloudinary.com"));
 
     const results = await Promise.allSettled(
@@ -215,7 +248,6 @@ export async function DELETE(req: Request) {
       else failed.push({ error: String(r.reason) });
     }
 
-    // 4) Delete DB row
     const deletedItem = await prisma.item.delete({ where: { id } });
 
     console.log("✅ DELETED ITEM:", id);
@@ -235,4 +267,3 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ error: err.message }, { status: 400 });
   }
 }
-
