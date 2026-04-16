@@ -8,6 +8,28 @@ interface ImagePreview {
   url: string;
 }
 
+function Field({
+  label,
+  hint,
+  children,
+  labelStyle,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+  labelStyle: React.CSSProperties;
+}) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <span style={labelStyle}>{label}</span>
+        {hint ? <span style={{ fontSize: 12, opacity: 0.65 }}>{hint}</span> : null}
+      </div>
+      {children}
+    </div>
+  );
+}
+
 export default function AdminPage() {
   // ---------- UI/Auth ----------
   const [checkingAuth, setCheckingAuth] = useState(true);
@@ -27,7 +49,7 @@ export default function AdminPage() {
   const [imagesBackground, setImagesBackground] = useState<ImagePreview[]>([]);
   const [imagesHowToUse, setImagesHowToUse] = useState<ImagePreview[]>([]);
 
-  // ---------- Styles (inline, no deps) ----------
+  // ---------- Styles ----------
   const S = useMemo(() => {
     const card = {
       background: "rgba(255,255,255,0.85)",
@@ -112,7 +134,7 @@ export default function AdminPage() {
     }
   };
 
-  // ---------- check auth on load ----------
+  // ---------- Check auth on load ----------
   useEffect(() => {
     const checkAuth = async () => {
       setCheckingAuth(true);
@@ -125,7 +147,9 @@ export default function AdminPage() {
         const authed = !!data?.authenticated;
         setShowLogin(!authed);
 
-        if (authed) await fetchItems();
+        if (authed) {
+          await fetchItems();
+        }
       } catch {
         setShowLogin(true);
       } finally {
@@ -134,7 +158,6 @@ export default function AdminPage() {
     };
 
     checkAuth();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // prevent ESC bypass
@@ -149,7 +172,10 @@ export default function AdminPage() {
     };
 
     window.addEventListener("keydown", onKeyDown, { capture: true });
-    return () => window.removeEventListener("keydown", onKeyDown, { capture: true } as any);
+    return () =>
+      window.removeEventListener("keydown", onKeyDown, {
+        capture: true,
+      } as EventListenerOptions);
   }, [showLogin]);
 
   // login submit
@@ -195,7 +221,6 @@ export default function AdminPage() {
     }
   };
 
-  // Handle file selection
   const handleFileChange = (
     e: React.ChangeEvent<HTMLInputElement>,
     setter: React.Dispatch<React.SetStateAction<ImagePreview[]>>
@@ -235,7 +260,9 @@ export default function AdminPage() {
         ["imagesHowToUse", imagesHowToUse],
       ] satisfies Array<[string, ImagePreview[]]>;
 
-      imageGroups.forEach(([key, list]) => list.forEach((img) => formData.append(key, img.file)));
+      imageGroups.forEach(([key, list]) =>
+        list.forEach((img) => formData.append(key, img.file))
+      );
 
       const res = await fetch("/api/items", { method: "POST", body: formData });
 
@@ -266,7 +293,7 @@ export default function AdminPage() {
     <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
       {list.map((img, idx) => (
         <div
-          key={idx}
+          key={`${img.url}-${idx}`}
           style={{
             position: "relative",
             width: 66,
@@ -310,28 +337,8 @@ export default function AdminPage() {
     </div>
   );
 
-  const Field = ({
-    label,
-    hint,
-    children,
-  }: {
-    label: string;
-    hint?: string;
-    children: React.ReactNode;
-  }) => (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <span style={S.label}>{label}</span>
-        {hint ? <span style={{ fontSize: 12, opacity: 0.65 }}>{hint}</span> : null}
-      </div>
-      {children}
-    </div>
-  );
-
-  // ---------- UI ----------
   return (
     <>
-      {/* Full-screen auth gate modal */}
       {showLogin && (
         <div
           style={{
@@ -357,7 +364,7 @@ export default function AdminPage() {
             style={{
               position: "relative",
               width: 320,
-              height: 320,
+              minHeight: 320,
               borderRadius: 18,
               background: "rgba(255,255,255,0.92)",
               boxShadow: "0 20px 60px rgba(0,0,0,0.35)",
@@ -376,7 +383,7 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <Field label="Username">
+            <Field label="Username" labelStyle={S.label}>
               <input
                 id="admin-username"
                 name="username"
@@ -384,13 +391,12 @@ export default function AdminPage() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Enter username"
-                autoFocus
                 disabled={checkingAuth}
                 style={S.input}
               />
             </Field>
 
-            <Field label="Password">
+            <Field label="Password" labelStyle={S.label}>
               <input
                 id="admin-password"
                 name="password"
@@ -404,13 +410,19 @@ export default function AdminPage() {
               />
             </Field>
 
-
             <button type="submit" disabled={checkingAuth} style={S.button}>
               {checkingAuth ? "Checking..." : "Sign in"}
             </button>
 
             {error && (
-              <div style={{ marginTop: 4, fontSize: 12, color: "#b00020", textAlign: "center" }}>
+              <div
+                style={{
+                  marginTop: 4,
+                  fontSize: 12,
+                  color: "#b00020",
+                  textAlign: "center",
+                }}
+              >
                 {error}
               </div>
             )}
@@ -418,7 +430,6 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* Full page visible + nicer layout */}
       <div
         style={{
           minHeight: "100vh",
@@ -429,7 +440,6 @@ export default function AdminPage() {
           userSelect: showLogin ? "none" : "auto",
         }}
       >
-        {/* Top bar */}
         <header
           style={{
             maxWidth: 1400,
@@ -475,7 +485,6 @@ export default function AdminPage() {
           </div>
         </header>
 
-        {/* Content grid */}
         <div
           style={{
             maxWidth: 1400,
@@ -486,54 +495,59 @@ export default function AdminPage() {
             alignItems: "start",
           }}
         >
-          {/* Left: Form */}
-          <section style={{ ...S.card, padding: 16, position: "sticky", top: 18, overflow: "scroll", maxHeight: "60%" }}>
+          <section
+            style={{
+              ...S.card,
+              padding: 16,
+              position: "sticky",
+              top: 18,
+              overflow: "scroll",
+              maxHeight: "60%",
+            }}
+          >
             <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
               <div style={{ fontWeight: 900, fontSize: 16 }}>Create Item</div>
-              <div style={{ fontSize: 12, opacity: 0.6 }}>
-                {items.length} items
-              </div>
+              <div style={{ fontSize: 12, opacity: 0.6 }}>{items.length} items</div>
             </div>
 
             <div style={{ height: 10 }} />
 
             <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              {/* Basic info */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <Field label="Name">
+                <Field label="Name" labelStyle={S.label}>
                   <input name="name" placeholder="Item name" required style={S.input} />
                 </Field>
-                <Field label="Type">
+                <Field label="Type" labelStyle={S.label}>
                   <input name="type" placeholder="Type" required style={S.input} />
                 </Field>
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <Field label="Category">
+                <Field label="Category" labelStyle={S.label}>
                   <input name="category" placeholder="Category" required style={S.input} />
                 </Field>
-                <Field label="Season">
+                <Field label="Season" labelStyle={S.label}>
                   <input name="season" placeholder="Season" required style={S.input} />
                 </Field>
               </div>
 
-              <Field label="Collection name">
+              <Field label="Collection name" labelStyle={S.label}>
                 <input name="collectionName" placeholder="Collection name" required style={S.input} />
               </Field>
 
-              <Field label="Short description">
+              <Field label="Short description" labelStyle={S.label}>
                 <input name="shortDescription" placeholder="Short description" required style={S.input} />
               </Field>
 
-              <Field label="Long description">
+              <Field label="Long description" labelStyle={S.label}>
                 <textarea name="longDescription" placeholder="Long description" required style={S.textarea} />
               </Field>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <Field label="Material">
+                <Field label="Material" labelStyle={S.label}>
                   <input name="material" placeholder="Material" required style={S.input} />
                 </Field>
-                <Field label="Products in collection">
+                <Field label="Products in collection" labelStyle={S.label}>
                   <input
                     name="productsInCollection"
                     type="number"
@@ -545,19 +559,18 @@ export default function AdminPage() {
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <Field label="Available colors" hint="Comma separated">
+                <Field label="Available colors" hint="Comma separated" labelStyle={S.label}>
                   <input name="availableColors" placeholder="e.g. white, beige, black" style={S.input} />
                 </Field>
-                <Field label="Matching palette" hint="Comma separated">
+                <Field label="Matching palette" hint="Comma separated" labelStyle={S.label}>
                   <input name="matchingPalette" placeholder="e.g. sand, clay, ash" style={S.input} />
                 </Field>
               </div>
 
-              <Field label="Sizes" hint="Comma separated">
+              <Field label="Sizes" hint="Comma separated" labelStyle={S.label}>
                 <input name="sizes" placeholder="e.g. 20cm, 25cm, 30cm" style={S.input} />
               </Field>
 
-              {/* Booleans */}
               <div style={{ display: "flex", gap: 12 }}>
                 <label
                   style={{
@@ -594,7 +607,6 @@ export default function AdminPage() {
                 </label>
               </div>
 
-              {/* Image upload sections */}
               {(
                 [
                   ["Above", imagesAbove, setImagesAbove],
@@ -642,7 +654,6 @@ export default function AdminPage() {
             </form>
           </section>
 
-          {/* Right: Table */}
           <section style={{ ...S.card, padding: 16, minHeight: 500, overflow: "scroll", height: "85vh" }}>
             <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
               <div style={{ fontWeight: 900, fontSize: 16 }}>Items</div>

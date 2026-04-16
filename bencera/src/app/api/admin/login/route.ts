@@ -14,6 +14,12 @@ export async function POST(req: Request) {
     const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH || "";
     const ADMIN_SESSION_SECRET = process.env.ADMIN_SESSION_SECRET || "";
 
+
+    console.log("ADMIN_USERNAME:", process.env.ADMIN_USERNAME);
+console.log("ADMIN_PASSWORD_HASH exists:", !!process.env.ADMIN_PASSWORD_HASH);
+console.log("ADMIN_PASSWORD_HASH length:", (process.env.ADMIN_PASSWORD_HASH || "").length);
+console.log("ADMIN_SESSION_SECRET exists:", !!process.env.ADMIN_SESSION_SECRET);
+
     if (!ADMIN_USERNAME || !ADMIN_PASSWORD_HASH || !ADMIN_SESSION_SECRET) {
       return NextResponse.json(
         { error: "Server auth not configured" },

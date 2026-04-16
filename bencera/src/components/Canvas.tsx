@@ -51,13 +51,7 @@ const Canvas = React.forwardRef<HTMLDivElement, CanvasProps>(({ items, onItemCli
     const background = safeJsonArray(item?.imagesBackground);
     const howToUse = safeJsonArray(item?.imagesHowToUse);
 
-    return (
-      above[0] ||
-      detailed[0] ||
-      background[0] ||
-      howToUse[0] ||
-      ""
-    );
+    return above[0] || detailed[0] || background[0] || howToUse[0] || "";
   };
 
   const itemsToRender = useMemo(() => {
@@ -129,6 +123,43 @@ const Canvas = React.forwardRef<HTMLDivElement, CanvasProps>(({ items, onItemCli
 
     const s = Math.sqrt((vw * vh) / (desired * avg * avg));
     return Math.min(4, Math.max(getMinScale(), s));
+  };
+
+  // 5 fixed zoom steps:
+  // step 0 = most zoomed out ≈ 80% of the full canvas visible
+  // step 4 = strong zoom in so only a few items are visible
+  const getZoomLevels = () => {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    const fullCanvasScale = Math.min(vw / canvasWidth, vh / canvasHeight);
+    const minStepScale = fullCanvasScale * 1.35; // shows about 80% of full canvas
+    const maxStepScale = Math.max(minStepScale, Math.min(4, computeScaleForVisibleItems(2)));
+
+    if (Math.abs(maxStepScale - minStepScale) < 0.0001) {
+      return Array(5).fill(minStepScale);
+    }
+
+    return Array.from({ length: 3 }, (_, i) => {
+      const t = i / 2;
+      return minStepScale + (maxStepScale - minStepScale) * t;
+    });
+  };
+
+  const getNearestZoomStepIndex = (scale: number) => {
+    const levels = getZoomLevels();
+    let nearest = 0;
+    let smallestDiff = Math.abs(levels[0] - scale);
+
+    for (let i = 1; i < levels.length; i++) {
+      const diff = Math.abs(levels[i] - scale);
+      if (diff < smallestDiff) {
+        smallestDiff = diff;
+        nearest = i;
+      }
+    }
+
+    return nearest;
   };
 
   // 1) Layout
@@ -603,12 +634,18 @@ const Canvas = React.forwardRef<HTMLDivElement, CanvasProps>(({ items, onItemCli
 
   const onZoomIn = () => {
     userInteracted.current = true;
-    zoomTo(Math.min(focus.current.scale * 1.12, 4));
+    const levels = getZoomLevels();
+    const currentIndex = getNearestZoomStepIndex(focus.current.scale);
+    const nextIndex = Math.min(currentIndex + 1, levels.length - 1);
+    zoomTo(levels[nextIndex]);
   };
 
   const onZoomOut = () => {
     userInteracted.current = true;
-    zoomTo(Math.max(focus.current.scale / 1.12, getMinScale()));
+    const levels = getZoomLevels();
+    const currentIndex = getNearestZoomStepIndex(focus.current.scale);
+    const nextIndex = Math.max(currentIndex - 1, 0);
+    zoomTo(levels[nextIndex]);
   };
 
   return (
@@ -631,7 +668,7 @@ const Canvas = React.forwardRef<HTMLDivElement, CanvasProps>(({ items, onItemCli
             const data = itemData.current[idx];
             if (!data) return null;
 
-            const img = getThumb(item); // ✅ FIXED: use fallback logic
+            const img = getThumb(item);
 
             return (
               <div
@@ -670,7 +707,6 @@ const Canvas = React.forwardRef<HTMLDivElement, CanvasProps>(({ items, onItemCli
                         }}
                       />
                     ) : (
-                      // Optional: show a placeholder so you can SEE the tile exists
                       <div
                         style={{
                           width: "100%",
