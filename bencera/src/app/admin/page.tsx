@@ -30,6 +30,23 @@ function Field({
   );
 }
 
+const initialFormValues = {
+  name: "",
+  type: "",
+  category: "",
+  season: "",
+  collectionName: "",
+  shortDescription: "",
+  longDescription: "",
+  material: "",
+  productsInCollection: "",
+  availableColors: "",
+  matchingPalette: "",
+  sizes: "",
+  unique: false,
+  handmade: false,
+};
+
 export default function AdminPage() {
   // ---------- UI/Auth ----------
   const [checkingAuth, setCheckingAuth] = useState(true);
@@ -39,15 +56,27 @@ export default function AdminPage() {
 
   // ---------- Page state ----------
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [items, setItems] = useState<any[]>([]);
+  const [formValues, setFormValues] = useState(initialFormValues);
 
   // Image previews for each category
   const [imagesAbove, setImagesAbove] = useState<ImagePreview[]>([]);
   const [imagesDetailed, setImagesDetailed] = useState<ImagePreview[]>([]);
   const [imagesBackground, setImagesBackground] = useState<ImagePreview[]>([]);
   const [imagesHowToUse, setImagesHowToUse] = useState<ImagePreview[]>([]);
+
+  const updateField = (
+    name: keyof typeof initialFormValues,
+    value: string | boolean
+  ) => {
+    setFormValues((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
 
   // ---------- Styles ----------
   const S = useMemo(() => {
@@ -74,6 +103,7 @@ export default function AdminPage() {
       padding: "0 12px",
       outline: "none",
       background: "rgba(255,255,255,0.9)",
+      width: "100%",
     } as const;
 
     const textarea = {
@@ -84,6 +114,7 @@ export default function AdminPage() {
       outline: "none",
       resize: "vertical" as const,
       background: "rgba(255,255,255,0.9)",
+      width: "100%",
     } as const;
 
     const button = {
@@ -94,6 +125,7 @@ export default function AdminPage() {
       fontWeight: 750,
       background: "black",
       color: "white",
+      padding: "0 14px",
     } as const;
 
     const softButton = {
@@ -103,6 +135,7 @@ export default function AdminPage() {
       cursor: "pointer",
       fontWeight: 650,
       background: "rgba(255,255,255,0.8)",
+      padding: "0 14px",
     } as const;
 
     return { card, label, input, textarea, button, softButton };
@@ -129,7 +162,7 @@ export default function AdminPage() {
       }));
 
       setItems(parsed);
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
     }
   };
@@ -138,7 +171,7 @@ export default function AdminPage() {
   useEffect(() => {
     const checkAuth = async () => {
       setCheckingAuth(true);
-      setError(null);
+      setLoginError(null);
 
       try {
         const res = await fetch("/api/admin/me", { cache: "no-store" });
@@ -181,7 +214,7 @@ export default function AdminPage() {
   // login submit
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
+    setLoginError(null);
     setSuccess(false);
 
     try {
@@ -194,7 +227,7 @@ export default function AdminPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data?.error || "Login failed");
+        setLoginError(data?.error || "Login failed");
         return;
       }
 
@@ -202,7 +235,7 @@ export default function AdminPage() {
       setPassword("");
       await fetchItems();
     } catch {
-      setError("Login failed");
+      setLoginError("Login failed");
     }
   };
 
@@ -234,6 +267,7 @@ export default function AdminPage() {
     }));
 
     setter((prev) => [...prev, ...previews]);
+    e.target.value = "";
   };
 
   const removePreview = (
@@ -243,15 +277,67 @@ export default function AdminPage() {
     setter((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const clearForm = () => {
+    setFormValues(initialFormValues);
+    setImagesAbove([]);
+    setImagesDetailed([]);
+    setImagesBackground([]);
+    setImagesHowToUse([]);
+    setFormError(null);
+    setSuccess(false);
+  };
+
+  const validateForm = () => {
+    const requiredFields: Array<keyof typeof initialFormValues> = [
+      "name",
+      "type",
+      "category",
+      "season",
+      "collectionName",
+      "shortDescription",
+      "longDescription",
+      "material",
+      "productsInCollection",
+    ];
+
+    for (const field of requiredFields) {
+      const value = formValues[field];
+      if (typeof value === "string" && !value.trim()) {
+        return "Please fill in all required fields.";
+      }
+    }
+
+    return null;
+  };
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
-    setError(null);
+    setFormError(null);
     setSuccess(false);
 
     try {
-      const form = e.currentTarget;
-      const formData = new FormData(form);
+      const validationError = validateForm();
+      if (validationError) {
+        throw new Error(validationError);
+      }
+
+      const formData = new FormData();
+
+      formData.append("name", formValues.name);
+      formData.append("type", formValues.type);
+      formData.append("category", formValues.category);
+      formData.append("season", formValues.season);
+      formData.append("collectionName", formValues.collectionName);
+      formData.append("shortDescription", formValues.shortDescription);
+      formData.append("longDescription", formValues.longDescription);
+      formData.append("material", formValues.material);
+      formData.append("productsInCollection", formValues.productsInCollection);
+      formData.append("availableColors", formValues.availableColors);
+      formData.append("matchingPalette", formValues.matchingPalette);
+      formData.append("sizes", formValues.sizes);
+      formData.append("unique", String(formValues.unique));
+      formData.append("handmade", String(formValues.handmade));
 
       const imageGroups = [
         ["imagesAbove", imagesAbove],
@@ -265,22 +351,18 @@ export default function AdminPage() {
       );
 
       const res = await fetch("/api/items", { method: "POST", body: formData });
+      const data = await res.json();
 
       if (!res.ok) {
-        const data = await res.json();
         throw new Error(data.error || "Something went wrong");
       }
 
       setSuccess(true);
-      form.reset();
-      setImagesAbove([]);
-      setImagesDetailed([]);
-      setImagesBackground([]);
-      setImagesHowToUse([]);
+      clearForm();
       await fetchItems();
     } catch (err: any) {
       console.error(err);
-      setError(err.message);
+      setFormError(err.message || "Failed to create item");
     } finally {
       setLoading(false);
     }
@@ -414,7 +496,7 @@ export default function AdminPage() {
               {checkingAuth ? "Checking..." : "Sign in"}
             </button>
 
-            {error && (
+            {loginError && (
               <div
                 style={{
                   marginTop: 4,
@@ -423,7 +505,7 @@ export default function AdminPage() {
                   textAlign: "center",
                 }}
               >
-                {error}
+                {loginError}
               </div>
             )}
           </form>
@@ -501,8 +583,9 @@ export default function AdminPage() {
               padding: 16,
               position: "sticky",
               top: 18,
-              overflow: "scroll",
-              maxHeight: "60%",
+              height: "calc(100vh - 120px)",
+              overflowY: "auto",
+              overflowX: "hidden",
             }}
           >
             <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
@@ -510,49 +593,125 @@ export default function AdminPage() {
               <div style={{ fontSize: 12, opacity: 0.6 }}>{items.length} items</div>
             </div>
 
-            <div style={{ height: 10 }} />
+            <div style={{ height: 6 }} />
+            <div style={{ fontSize: 12, opacity: 0.65 }}>
+              Fields marked as required should be filled before saving.
+            </div>
+
+            <div style={{ height: 14 }} />
 
             <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ fontWeight: 800, fontSize: 13, opacity: 0.8 }}>Basic info</div>
+
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <Field label="Name" labelStyle={S.label}>
-                  <input name="name" placeholder="Item name" required style={S.input} />
+                  <input
+                    name="name"
+                    placeholder="Item name"
+                    required
+                    value={formValues.name}
+                    onChange={(e) => updateField("name", e.target.value)}
+                    style={S.input}
+                  />
                 </Field>
+
                 <Field label="Type" labelStyle={S.label}>
-                  <input name="type" placeholder="Type" required style={S.input} />
+                  <input
+                    name="type"
+                    placeholder="Type"
+                    required
+                    value={formValues.type}
+                    onChange={(e) => updateField("type", e.target.value)}
+                    style={S.input}
+                  />
                 </Field>
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <Field label="Category" labelStyle={S.label}>
-                  <input name="category" placeholder="Category" required style={S.input} />
+                  <input
+                    name="category"
+                    placeholder="Category"
+                    required
+                    value={formValues.category}
+                    onChange={(e) => updateField("category", e.target.value)}
+                    style={S.input}
+                  />
                 </Field>
+
                 <Field label="Season" labelStyle={S.label}>
-                  <input name="season" placeholder="Season" required style={S.input} />
+                  <input
+                    name="season"
+                    placeholder="Season"
+                    required
+                    value={formValues.season}
+                    onChange={(e) => updateField("season", e.target.value)}
+                    style={S.input}
+                  />
                 </Field>
               </div>
 
               <Field label="Collection name" labelStyle={S.label}>
-                <input name="collectionName" placeholder="Collection name" required style={S.input} />
+                <input
+                  name="collectionName"
+                  placeholder="Collection name"
+                  required
+                  value={formValues.collectionName}
+                  onChange={(e) => updateField("collectionName", e.target.value)}
+                  style={S.input}
+                />
               </Field>
 
+              <div style={{ fontWeight: 800, fontSize: 13, opacity: 0.8, marginTop: 4 }}>
+                Description
+              </div>
+
               <Field label="Short description" labelStyle={S.label}>
-                <input name="shortDescription" placeholder="Short description" required style={S.input} />
+                <input
+                  name="shortDescription"
+                  placeholder="Short description"
+                  required
+                  value={formValues.shortDescription}
+                  onChange={(e) => updateField("shortDescription", e.target.value)}
+                  style={S.input}
+                />
               </Field>
 
               <Field label="Long description" labelStyle={S.label}>
-                <textarea name="longDescription" placeholder="Long description" required style={S.textarea} />
+                <textarea
+                  name="longDescription"
+                  placeholder="Long description"
+                  required
+                  value={formValues.longDescription}
+                  onChange={(e) => updateField("longDescription", e.target.value)}
+                  style={S.textarea}
+                />
               </Field>
+
+              <div style={{ fontWeight: 800, fontSize: 13, opacity: 0.8, marginTop: 4 }}>
+                Details
+              </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <Field label="Material" labelStyle={S.label}>
-                  <input name="material" placeholder="Material" required style={S.input} />
+                  <input
+                    name="material"
+                    placeholder="Material"
+                    required
+                    value={formValues.material}
+                    onChange={(e) => updateField("material", e.target.value)}
+                    style={S.input}
+                  />
                 </Field>
+
                 <Field label="Products in collection" labelStyle={S.label}>
                   <input
                     name="productsInCollection"
                     type="number"
                     placeholder="Products in collection"
                     required
+                    value={formValues.productsInCollection}
+                    onChange={(e) => updateField("productsInCollection", e.target.value)}
                     style={S.input}
                   />
                 </Field>
@@ -560,15 +719,34 @@ export default function AdminPage() {
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <Field label="Available colors" hint="Comma separated" labelStyle={S.label}>
-                  <input name="availableColors" placeholder="e.g. white, beige, black" style={S.input} />
+                  <input
+                    name="availableColors"
+                    placeholder="e.g. white, beige, black"
+                    value={formValues.availableColors}
+                    onChange={(e) => updateField("availableColors", e.target.value)}
+                    style={S.input}
+                  />
                 </Field>
+
                 <Field label="Matching palette" hint="Comma separated" labelStyle={S.label}>
-                  <input name="matchingPalette" placeholder="e.g. sand, clay, ash" style={S.input} />
+                  <input
+                    name="matchingPalette"
+                    placeholder="e.g. sand, clay, ash"
+                    value={formValues.matchingPalette}
+                    onChange={(e) => updateField("matchingPalette", e.target.value)}
+                    style={S.input}
+                  />
                 </Field>
               </div>
 
               <Field label="Sizes" hint="Comma separated" labelStyle={S.label}>
-                <input name="sizes" placeholder="e.g. 20cm, 25cm, 30cm" style={S.input} />
+                <input
+                  name="sizes"
+                  placeholder="e.g. 20cm, 25cm, 30cm"
+                  value={formValues.sizes}
+                  onChange={(e) => updateField("sizes", e.target.value)}
+                  style={S.input}
+                />
               </Field>
 
               <div style={{ display: "flex", gap: 12 }}>
@@ -585,7 +763,12 @@ export default function AdminPage() {
                     cursor: "pointer",
                   }}
                 >
-                  <input type="checkbox" name="unique" />
+                  <input
+                    type="checkbox"
+                    name="unique"
+                    checked={formValues.unique}
+                    onChange={(e) => updateField("unique", e.target.checked)}
+                  />
                   <span style={{ fontSize: 13, fontWeight: 650 }}>Unique</span>
                 </label>
 
@@ -602,9 +785,18 @@ export default function AdminPage() {
                     cursor: "pointer",
                   }}
                 >
-                  <input type="checkbox" name="handmade" />
+                  <input
+                    type="checkbox"
+                    name="handmade"
+                    checked={formValues.handmade}
+                    onChange={(e) => updateField("handmade", e.target.checked)}
+                  />
                   <span style={{ fontSize: 13, fontWeight: 650 }}>Handmade</span>
                 </label>
+              </div>
+
+              <div style={{ fontWeight: 800, fontSize: 13, opacity: 0.8, marginTop: 4 }}>
+                Images
               </div>
 
               {(
@@ -637,24 +829,71 @@ export default function AdminPage() {
                     type="file"
                     multiple
                     accept="image/*"
-                    onChange={(e) => handleFileChange(e, setter as any)}
+                    onChange={(e) => handleFileChange(e, setter)}
                     style={{ width: "100%" }}
                   />
 
-                  {renderImagePreviews(list as ImagePreview[], setter as any)}
+                  {renderImagePreviews(list, setter)}
                 </div>
               ))}
 
-              <button type="submit" disabled={loading} style={{ ...S.button, opacity: loading ? 0.75 : 1 }}>
-                {loading ? "Saving..." : "Create Item"}
-              </button>
+              <div
+                style={{
+                  position: "sticky",
+                  bottom: -16,
+                  background: "rgba(255,255,255,0.97)",
+                  paddingTop: 12,
+                  paddingBottom: 6,
+                  marginTop: 4,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                  borderTop: "1px solid rgba(0,0,0,0.06)",
+                }}
+              >
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    style={{ ...S.button, opacity: loading ? 0.75 : 1, flex: 1 }}
+                  >
+                    {loading ? "Saving..." : "Create Item"}
+                  </button>
 
-              {success && <div style={{ color: "green", fontSize: 13, fontWeight: 650 }}>Item created ✔</div>}
-              {error && <div style={{ color: "#b00020", fontSize: 13 }}>{error}</div>}
+                  <button
+                    type="button"
+                    onClick={clearForm}
+                    disabled={loading}
+                    style={{ ...S.softButton, minWidth: 110 }}
+                  >
+                    Clear
+                  </button>
+                </div>
+
+                {success && (
+                  <div style={{ color: "green", fontSize: 13, fontWeight: 650 }}>
+                    Item created ✔
+                  </div>
+                )}
+
+                {formError && (
+                  <div style={{ color: "#b00020", fontSize: 13 }}>
+                    {formError}
+                  </div>
+                )}
+              </div>
             </form>
           </section>
 
-          <section style={{ ...S.card, padding: 16, minHeight: 500, overflow: "scroll", height: "85vh" }}>
+          <section
+            style={{
+              ...S.card,
+              padding: 16,
+              minHeight: 500,
+              overflow: "scroll",
+              height: "85vh",
+            }}
+          >
             <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
               <div style={{ fontWeight: 900, fontSize: 16 }}>Items</div>
               <div style={{ fontSize: 12, opacity: 0.6 }}>Latest first</div>
