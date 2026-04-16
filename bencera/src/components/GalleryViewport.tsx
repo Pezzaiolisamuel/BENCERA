@@ -4,14 +4,17 @@ import React, { useRef, useState } from "react";
 import NavBar from "./NavBar";
 import Canvas from "./Canvas";
 import DetailsPanel from "./DetailsPanel";
-import { useGalleryViewport } from "../app/hooks/useGalleryViewport";
+import type { Item } from "@/types/item";
 
-export default function GalleryViewport({ items }: any) {
+type GalleryViewportProps = {
+  items: Item[];
+};
+
+export default function GalleryViewport({ items }: GalleryViewportProps) {
   console.log("GalleryViewport items:", items?.length, items?.[0]);
   const canvasRef = useRef<HTMLDivElement>(null);
-//   useGalleryViewport({ canvasRef });
 
-  const [activeItem, setActiveItem] = useState(null);
+  const [activeItem, setActiveItem] = useState<Item | null>(null);
   
 
   return (
@@ -27,7 +30,11 @@ export default function GalleryViewport({ items }: any) {
           backgroundColor: "transparent",
         }}
       >
-        <DetailsPanel item={activeItem} onClose={() => setActiveItem(null)} />
+        <DetailsPanel
+          key={activeItem?.id ?? "empty"}
+          item={activeItem}
+          onClose={() => setActiveItem(null)}
+        />
         <Canvas ref={canvasRef} items={items} onItemClick={setActiveItem} />
       </div>
     </div>

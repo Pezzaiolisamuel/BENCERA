@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import crypto from "crypto";
-
-function signSession(payload: string, secret: string) {
-  return crypto.createHmac("sha256", secret).update(payload).digest("hex");
-}
+import { adminSessionCookieName, buildAdminSessionCookieValue } from "@/lib/admin-session";
 
 export async function POST(req: Request) {
   try {
@@ -41,16 +37,9 @@ console.log("HASH starts:", (process.env.ADMIN_PASSWORD_HASH || "").slice(0, 4))
       return NextResponse.json({ error: "Invalid 2 credentials" }, { status: 401 });
     }
 
-    // Create a simple signed cookie value: "admin|timestamp|signature"
-    const ts = Date.now().toString();
-    const payload = `admin|${ts}`;
-    const sig = signSession(payload, ADMIN_SESSION_SECRET);
-    const value = `${payload}|${sig}`;
-
     const res = NextResponse.json({ ok: true });
 
-    // HttpOnly cookie prevents JS from reading it
-    res.cookies.set("admin_session", value, {
+    res.cookies.set(adminSessionCookieName, buildAdminSessionCookieValue(ADMIN_SESSION_SECRET), {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",

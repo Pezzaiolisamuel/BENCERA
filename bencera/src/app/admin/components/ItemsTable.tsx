@@ -1,48 +1,28 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
 import { Trash2, X } from "lucide-react";
+import type { Item, ItemImageKey } from "@/types/item";
 
 interface ItemsTableProps {
-  items: any[];
+  items: Item[];
   onDeleteClick: (id: string) => void;
 }
 
+const imageColumnOrder: ItemImageKey[] = ["above", "detailed", "background", "howToUse"];
+
+const disabledControlStyle = {
+  opacity: 0.45,
+  cursor: "not-allowed",
+};
+
 export default function ItemsTable({ items, onDeleteClick }: ItemsTableProps) {
-  const [localItems, setLocalItems] = useState(items);
-
-  // Sync props.items when they change
-  useEffect(() => {
-    setLocalItems(items);
-  }, [items]);
-
-  const updateImageArray = (
-    id: string,
-    type: "above" | "detailed" | "background" | "howToUse",
-    value: string[]
-  ) => {
-    setLocalItems((prev) =>
-      prev.map((item) =>
-        item.id === id
-          ? {
-            ...item,
-            images: {
-              ...item.images,
-              [type]: value,
-            },
-          }
-          : item
-      )
-    );
-  };
-
   return (
     <div
       style={{
         width: "100%",
-        maxHeight: "600px", // <-- fixed height
-        overflowY: "auto", // <-- vertical scroll
-        overflowX: "auto", // <-- horizontal scroll if needed
+        maxHeight: "600px",
+        overflowY: "auto",
+        overflowX: "auto",
         marginTop: 40,
         border: "1px solid #ccc",
         borderRadius: 5,
@@ -74,12 +54,14 @@ export default function ItemsTable({ items, onDeleteClick }: ItemsTableProps) {
           </tr>
         </thead>
         <tbody>
-          {localItems.map((item) => (
+          {items.map((item) => (
             <tr key={item.id} style={{ borderBottom: "1px solid #ccc", verticalAlign: "top" }}>
               <td>
                 <button
+                  type="button"
                   onClick={() => onDeleteClick(item.id)}
                   style={{ background: "transparent", border: "none", cursor: "pointer" }}
+                  aria-label={`Delete ${item.name}`}
                 >
                   <Trash2 size={16} />
                 </button>
@@ -88,16 +70,20 @@ export default function ItemsTable({ items, onDeleteClick }: ItemsTableProps) {
               <td>{item.name}</td>
               <td>{item.type}</td>
               <td>{item.category}</td>
-              <td>{(item.availableColors || []).join(", ")}</td>
-              <td>{(item.matchingPalette || []).join(", ")}</td>
+              <td>{item.availableColors.join(", ")}</td>
+              <td>{item.matchingPalette.join(", ")}</td>
 
-              {(["above", "detailed", "background", "howToUse"] as const).map((type) => {
-                const arr = item.images?.[type] || [];
+              {imageColumnOrder.map((imageKey) => {
+                const imageUrls = item.images?.[imageKey] || [];
+
                 return (
-                  <td key={type}>
-                    {arr.map((url: string, idx: number) => (
-                      url ? (  // <-- only render if url is not empty
-                        <div key={idx} style={{ display: "flex", alignItems: "center", marginBottom: 5 }}>
+                  <td key={imageKey}>
+                    {imageUrls.map((url, index) =>
+                      url ? (
+                        <div
+                          key={`${url}-${index}`}
+                          style={{ display: "flex", alignItems: "center", marginBottom: 5 }}
+                        >
                           <img
                             src={url}
                             alt=""
@@ -112,29 +98,34 @@ export default function ItemsTable({ items, onDeleteClick }: ItemsTableProps) {
                           <input
                             type="text"
                             value={url}
-                            style={{ width: 120 }}
-                            onChange={(e) => {
-                              const newArr = [...arr];
-                              newArr[idx] = e.target.value;
-                              updateImageArray(item.id, type, newArr);
-                            }}
+                            readOnly
+                            aria-label={`${imageKey} image url`}
+                            style={{ width: 120, background: "#f6f6f6", color: "#666" }}
                           />
                           <button
-                            onClick={() => updateImageArray(item.id, type, arr.filter((value: string, i: number) => i !== idx))}
+                            type="button"
+                            disabled
+                            title="Not available yet"
+                            aria-label="Remove image unavailable"
                             style={{
                               background: "transparent",
                               border: "none",
-                              cursor: "pointer",
                               marginLeft: 2,
+                              ...disabledControlStyle,
                             }}
                           >
                             <X size={14} />
                           </button>
                         </div>
                       ) : null
-                    ))}
+                    )}
 
-                    <button onClick={() => updateImageArray(item.id, type, [...arr, ""])} style={{ marginTop: 2 }}>
+                    <button
+                      type="button"
+                      disabled
+                      title="Not available yet"
+                      style={{ marginTop: 2, ...disabledControlStyle }}
+                    >
                       + Add
                     </button>
                   </td>
@@ -145,7 +136,7 @@ export default function ItemsTable({ items, onDeleteClick }: ItemsTableProps) {
               <td>{item.longDescription}</td>
               <td>{item.collectionName}</td>
               <td>{item.season}</td>
-              <td>{(item.sizes || []).join(", ")}</td>
+              <td>{item.sizes.join(", ")}</td>
               <td>{item.productsInCollection}</td>
               <td>{item.unique ? "✔" : ""}</td>
               <td>{item.handmade ? "✔" : ""}</td>

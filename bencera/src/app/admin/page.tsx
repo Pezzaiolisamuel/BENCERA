@@ -1,12 +1,25 @@
 "use client";
 
+import type {
+  ChangeEvent,
+  CSSProperties,
+  FormEvent,
+  ReactNode,
+} from "react";
 import { useEffect, useMemo, useState } from "react";
 import ItemsTable from "./components/ItemsTable";
-
-interface ImagePreview {
-  file: File;
-  url: string;
-}
+import {
+  buildItemFormData,
+  createEmptyImagePreviewGroups,
+  imageUploadSections,
+  initialItemFormValues,
+  type ImagePreview,
+  type ImagePreviewGroups,
+  type ItemFormValues,
+  validateItemForm,
+} from "@/lib/admin-item-form";
+import { parseStoredItems } from "@/lib/item-data";
+import type { Item, ItemImageKey } from "@/types/item";
 
 function Field({
   label,
@@ -16,8 +29,8 @@ function Field({
 }: {
   label: string;
   hint?: string;
-  children: React.ReactNode;
-  labelStyle: React.CSSProperties;
+  children: ReactNode;
+  labelStyle: CSSProperties;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -30,56 +43,43 @@ function Field({
   );
 }
 
-const initialFormValues = {
-  name: "",
-  type: "",
-  category: "",
-  season: "",
-  collectionName: "",
-  shortDescription: "",
-  longDescription: "",
-  material: "",
-  productsInCollection: "",
-  availableColors: "",
-  matchingPalette: "",
-  sizes: "",
-  unique: false,
-  handmade: false,
-};
+function cloneImagePreviewGroups(groups: ImagePreviewGroups) {
+  return {
+    above: [...groups.above],
+    detailed: [...groups.detailed],
+    background: [...groups.background],
+    howToUse: [...groups.howToUse],
+  };
+}
+
+function revokePreviewUrls(previews: ImagePreview[]) {
+  previews.forEach((preview) => URL.revokeObjectURL(preview.url));
+}
 
 export default function AdminPage() {
-  // ---------- UI/Auth ----------
-  const [checkingAuth, setCheckingAuth] = useState(true);
-  const [showLogin, setShowLogin] = useState(true);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [isLoginVisible, setIsLoginVisible] = useState(true);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
-  // ---------- Page state ----------
-  const [loading, setLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
-  const [items, setItems] = useState<any[]>([]);
-  const [formValues, setFormValues] = useState(initialFormValues);
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [catalogItems, setCatalogItems] = useState<Item[]>([]);
+  const [itemFormValues, setItemFormValues] = useState<ItemFormValues>(initialItemFormValues);
+  const [imagePreviewGroups, setImagePreviewGroups] = useState<ImagePreviewGroups>(
+    createEmptyImagePreviewGroups
+  );
 
-  // Image previews for each category
-  const [imagesAbove, setImagesAbove] = useState<ImagePreview[]>([]);
-  const [imagesDetailed, setImagesDetailed] = useState<ImagePreview[]>([]);
-  const [imagesBackground, setImagesBackground] = useState<ImagePreview[]>([]);
-  const [imagesHowToUse, setImagesHowToUse] = useState<ImagePreview[]>([]);
-
-  const updateField = (
-    name: keyof typeof initialFormValues,
-    value: string | boolean
-  ) => {
-    setFormValues((prev) => ({
-      ...prev,
-      [name]: value,
+  const updateField = (fieldName: keyof ItemFormValues, value: string | boolean) => {
+    setItemFormValues((currentValues) => ({
+      ...currentValues,
+      [fieldName]: value,
     }));
   };
 
-  // ---------- Styles ----------
-  const S = useMemo(() => {
+  const styles = useMemo(() => {
     const card = {
       background: "rgba(255,255,255,0.85)",
       border: "1px solid rgba(0,0,0,0.08)",
@@ -141,97 +141,81 @@ export default function AdminPage() {
     return { card, label, input, textarea, button, softButton };
   }, []);
 
-  // ---------- Data ----------
   const fetchItems = async () => {
     try {
-      const res = await fetch("/api/items", { cache: "no-store" });
-      if (!res.ok) throw new Error("Failed to fetch items");
-      const data = await res.json();
+      const response = await fetch("/api/items", { cache: "no-store" });
+      if (!response.ok) throw new Error("Failed to fetch items");
 
-      const parsed = data.map((item: any) => ({
-        ...item,
-        availableColors: JSON.parse(item.availableColors || "[]"),
-        matchingPalette: JSON.parse(item.matchingPalette || "[]"),
-        sizes: JSON.parse(item.sizes || "[]"),
-        images: {
-          above: JSON.parse(item.imagesAbove || "[]"),
-          detailed: JSON.parse(item.imagesDetailed || "[]"),
-          background: JSON.parse(item.imagesBackground || "[]"),
-          howToUse: JSON.parse(item.imagesHowToUse || "[]"),
-        },
-      }));
-
-      setItems(parsed);
-    } catch (err) {
-      console.error(err);
+      const data = await response.json();
+      setCatalogItems(parseStoredItems(data));
+    } catch (error) {
+      console.error(error);
     }
   };
 
-  // ---------- Check auth on load ----------
   useEffect(() => {
     const checkAuth = async () => {
-      setCheckingAuth(true);
+      setIsCheckingAuth(true);
       setLoginError(null);
 
       try {
-        const res = await fetch("/api/admin/me", { cache: "no-store" });
-        const data = await res.json();
+        const response = await fetch("/api/admin/me", { cache: "no-store" });
+        const data = await response.json();
+        const isAuthenticated = !!data?.authenticated;
 
-        const authed = !!data?.authenticated;
-        setShowLogin(!authed);
+        setIsLoginVisible(!isAuthenticated);
 
-        if (authed) {
+        if (isAuthenticated) {
           await fetchItems();
         }
       } catch {
-        setShowLogin(true);
+        setIsLoginVisible(true);
       } finally {
-        setCheckingAuth(false);
+        setIsCheckingAuth(false);
       }
     };
 
     checkAuth();
   }, []);
 
-  // prevent ESC bypass
   useEffect(() => {
-    if (!showLogin) return;
+    if (!isLoginVisible) return;
 
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        e.stopPropagation();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
       }
     };
 
-    window.addEventListener("keydown", onKeyDown, { capture: true });
+    window.addEventListener("keydown", handleKeyDown, { capture: true });
+
     return () =>
-      window.removeEventListener("keydown", onKeyDown, {
+      window.removeEventListener("keydown", handleKeyDown, {
         capture: true,
       } as EventListenerOptions);
-  }, [showLogin]);
+  }, [isLoginVisible]);
 
-  // login submit
-  const handleLoginSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLoginSubmit = async (event: FormEvent) => {
+    event.preventDefault();
     setLoginError(null);
-    setSuccess(false);
+    setShowSuccess(false);
 
     try {
-      const res = await fetch("/api/admin/login", {
+      const response = await fetch("/api/admin/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
 
-      const data = await res.json();
+      const data = await response.json();
 
-      if (!res.ok) {
+      if (!response.ok) {
         setLoginError(data?.error || "Login failed");
         return;
       }
 
-      setShowLogin(false);
+      setIsLoginVisible(false);
       setPassword("");
       await fetchItems();
     } catch {
@@ -239,143 +223,109 @@ export default function AdminPage() {
     }
   };
 
-  // ---------- CRUD ----------
-  const deleteItem = async (id: string) => {
+  const handleDeleteItem = async (id: string) => {
     try {
-      const res = await fetch(`/api/items?id=${id}`, { method: "DELETE" });
-      if (!res.ok) {
-        const data = await res.json();
+      const response = await fetch(`/api/items?id=${id}`, { method: "DELETE" });
+      if (!response.ok) {
+        const data = await response.json();
         throw new Error(data.error || "Delete failed");
       }
-      setItems((prev) => prev.filter((item) => item.id !== id));
-    } catch (err: any) {
-      console.error(err);
-      alert(err.message);
+
+      setCatalogItems((currentItems) => currentItems.filter((item) => item.id !== id));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Delete failed";
+      console.error(error);
+      alert(message);
     }
   };
 
   const handleFileChange = (
-    e: React.ChangeEvent<HTMLInputElement>,
-    setter: React.Dispatch<React.SetStateAction<ImagePreview[]>>
+    event: ChangeEvent<HTMLInputElement>,
+    imageKey: ItemImageKey
   ) => {
-    const files = e.target.files;
+    const files = event.target.files;
     if (!files) return;
 
-    const previews: ImagePreview[] = Array.from(files).map((file) => ({
+    const nextPreviews: ImagePreview[] = Array.from(files).map((file) => ({
       file,
       url: URL.createObjectURL(file),
     }));
 
-    setter((prev) => [...prev, ...previews]);
-    e.target.value = "";
+    setImagePreviewGroups((currentGroups) => ({
+      ...currentGroups,
+      [imageKey]: [...currentGroups[imageKey], ...nextPreviews],
+    }));
+
+    event.target.value = "";
   };
 
-  const removePreview = (
-    setter: React.Dispatch<React.SetStateAction<ImagePreview[]>>,
-    index: number
-  ) => {
-    setter((prev) => prev.filter((_, i) => i !== index));
+  const removePreview = (imageKey: ItemImageKey, index: number) => {
+    setImagePreviewGroups((currentGroups) => {
+      const nextGroups = cloneImagePreviewGroups(currentGroups);
+      const [removedPreview] = nextGroups[imageKey].splice(index, 1);
+      if (removedPreview) {
+        URL.revokeObjectURL(removedPreview.url);
+      }
+      return nextGroups;
+    });
   };
 
   const clearForm = () => {
-    setFormValues(initialFormValues);
-    setImagesAbove([]);
-    setImagesDetailed([]);
-    setImagesBackground([]);
-    setImagesHowToUse([]);
+    revokePreviewUrls([
+      ...imagePreviewGroups.above,
+      ...imagePreviewGroups.detailed,
+      ...imagePreviewGroups.background,
+      ...imagePreviewGroups.howToUse,
+    ]);
+
+    setItemFormValues(initialItemFormValues);
+    setImagePreviewGroups(createEmptyImagePreviewGroups());
     setFormError(null);
-    setSuccess(false);
+    setShowSuccess(false);
   };
 
-  const validateForm = () => {
-    const requiredFields: Array<keyof typeof initialFormValues> = [
-      "name",
-      "type",
-      "category",
-      "season",
-      "collectionName",
-      "shortDescription",
-      "longDescription",
-      "material",
-      "productsInCollection",
-    ];
-
-    for (const field of requiredFields) {
-      const value = formValues[field];
-      if (typeof value === "string" && !value.trim()) {
-        return "Please fill in all required fields.";
-      }
-    }
-
-    return null;
-  };
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setLoading(true);
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSubmitting(true);
     setFormError(null);
-    setSuccess(false);
+    setShowSuccess(false);
 
     try {
-      const validationError = validateForm();
+      const validationError = validateItemForm(itemFormValues);
       if (validationError) {
         throw new Error(validationError);
       }
 
-      const formData = new FormData();
+      const response = await fetch("/api/items", {
+        method: "POST",
+        body: buildItemFormData(itemFormValues, imagePreviewGroups),
+      });
+      const data = await response.json();
 
-      formData.append("name", formValues.name);
-      formData.append("type", formValues.type);
-      formData.append("category", formValues.category);
-      formData.append("season", formValues.season);
-      formData.append("collectionName", formValues.collectionName);
-      formData.append("shortDescription", formValues.shortDescription);
-      formData.append("longDescription", formValues.longDescription);
-      formData.append("material", formValues.material);
-      formData.append("productsInCollection", formValues.productsInCollection);
-      formData.append("availableColors", formValues.availableColors);
-      formData.append("matchingPalette", formValues.matchingPalette);
-      formData.append("sizes", formValues.sizes);
-      formData.append("unique", String(formValues.unique));
-      formData.append("handmade", String(formValues.handmade));
-
-      const imageGroups = [
-        ["imagesAbove", imagesAbove],
-        ["imagesDetailed", imagesDetailed],
-        ["imagesBackground", imagesBackground],
-        ["imagesHowToUse", imagesHowToUse],
-      ] satisfies Array<[string, ImagePreview[]]>;
-
-      imageGroups.forEach(([key, list]) =>
-        list.forEach((img) => formData.append(key, img.file))
-      );
-
-      const res = await fetch("/api/items", { method: "POST", body: formData });
-      const data = await res.json();
-
-      if (!res.ok) {
+      if (!response.ok) {
         throw new Error(data.error || "Something went wrong");
       }
 
-      setSuccess(true);
+      setShowSuccess(true);
       clearForm();
       await fetchItems();
-    } catch (err: any) {
-      console.error(err);
-      setFormError(err.message || "Failed to create item");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to create item";
+      console.error(error);
+      setFormError(message);
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
-  }
+  };
 
   const renderImagePreviews = (
-    list: ImagePreview[],
-    setter: React.Dispatch<React.SetStateAction<ImagePreview[]>>
+    previews: ImagePreview[],
+    imageKey: ItemImageKey
   ) => (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
-      {list.map((img, idx) => (
+      {previews.map((image, index) => (
         <div
-          key={`${img.url}-${idx}`}
+          key={`${image.url}-${index}`}
           style={{
             position: "relative",
             width: 66,
@@ -387,13 +337,13 @@ export default function AdminPage() {
           }}
         >
           <img
-            src={img.url}
+            src={image.url}
             alt=""
             style={{ width: "100%", height: "100%", objectFit: "cover" }}
           />
           <button
             type="button"
-            onClick={() => removePreview(setter, idx)}
+            onClick={() => removePreview(imageKey, index)}
             style={{
               position: "absolute",
               top: 6,
@@ -412,7 +362,7 @@ export default function AdminPage() {
             aria-label="Remove image"
             title="Remove"
           >
-            ×
+            x
           </button>
         </div>
       ))}
@@ -421,7 +371,7 @@ export default function AdminPage() {
 
   return (
     <>
-      {showLogin && (
+      {isLoginVisible && (
         <div
           style={{
             position: "fixed",
@@ -465,35 +415,35 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <Field label="Username" labelStyle={S.label}>
+            <Field label="Username" labelStyle={styles.label}>
               <input
                 id="admin-username"
                 name="username"
                 autoComplete="username"
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                onChange={(event) => setUsername(event.target.value)}
                 placeholder="Enter username"
-                disabled={checkingAuth}
-                style={S.input}
+                disabled={isCheckingAuth}
+                style={styles.input}
               />
             </Field>
 
-            <Field label="Password" labelStyle={S.label}>
+            <Field label="Password" labelStyle={styles.label}>
               <input
                 id="admin-password"
                 name="password"
                 autoComplete="current-password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(event) => setPassword(event.target.value)}
                 placeholder="Enter password"
                 type="password"
-                disabled={checkingAuth}
-                style={S.input}
+                disabled={isCheckingAuth}
+                style={styles.input}
               />
             </Field>
 
-            <button type="submit" disabled={checkingAuth} style={S.button}>
-              {checkingAuth ? "Checking..." : "Sign in"}
+            <button type="submit" disabled={isCheckingAuth} style={styles.button}>
+              {isCheckingAuth ? "Checking..." : "Sign in"}
             </button>
 
             {loginError && (
@@ -518,8 +468,8 @@ export default function AdminPage() {
           padding: 18,
           background:
             "radial-gradient(1200px 600px at 20% 0%, rgba(0,0,0,0.06), transparent 60%), radial-gradient(1200px 600px at 80% 40%, rgba(0,0,0,0.05), transparent 60%), #f7f7f7",
-          pointerEvents: showLogin ? "none" : "auto",
-          userSelect: showLogin ? "none" : "auto",
+          pointerEvents: isLoginVisible ? "none" : "auto",
+          userSelect: isLoginVisible ? "none" : "auto",
         }}
       >
         <header
@@ -546,8 +496,8 @@ export default function AdminPage() {
             <button
               type="button"
               onClick={fetchItems}
-              style={S.softButton}
-              disabled={loading}
+              style={styles.softButton}
+              disabled={isSubmitting}
               title="Refresh items"
             >
               Refresh
@@ -562,7 +512,7 @@ export default function AdminPage() {
                 background: "rgba(255,255,255,0.75)",
               }}
             >
-              {loading ? "Saving…" : "Ready"}
+              {isSubmitting ? "Saving..." : "Ready"}
             </div>
           </div>
         </header>
@@ -579,7 +529,7 @@ export default function AdminPage() {
         >
           <section
             style={{
-              ...S.card,
+              ...styles.card,
               padding: 16,
               position: "sticky",
               top: 18,
@@ -588,9 +538,15 @@ export default function AdminPage() {
               overflowX: "hidden",
             }}
           >
-            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "baseline",
+                justifyContent: "space-between",
+              }}
+            >
               <div style={{ fontWeight: 900, fontSize: 16 }}>Create Item</div>
-              <div style={{ fontSize: 12, opacity: 0.6 }}>{items.length} items</div>
+              <div style={{ fontSize: 12, opacity: 0.6 }}>{catalogItems.length} items</div>
             </div>
 
             <div style={{ height: 6 }} />
@@ -600,65 +556,68 @@ export default function AdminPage() {
 
             <div style={{ height: 14 }} />
 
-            <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <form
+              onSubmit={handleSubmit}
+              style={{ display: "flex", flexDirection: "column", gap: 14 }}
+            >
               <div style={{ fontWeight: 800, fontSize: 13, opacity: 0.8 }}>Basic info</div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <Field label="Name" labelStyle={S.label}>
+                <Field label="Name" labelStyle={styles.label}>
                   <input
                     name="name"
                     placeholder="Item name"
                     required
-                    value={formValues.name}
-                    onChange={(e) => updateField("name", e.target.value)}
-                    style={S.input}
+                    value={itemFormValues.name}
+                    onChange={(event) => updateField("name", event.target.value)}
+                    style={styles.input}
                   />
                 </Field>
 
-                <Field label="Type" labelStyle={S.label}>
+                <Field label="Type" labelStyle={styles.label}>
                   <input
                     name="type"
                     placeholder="Type"
                     required
-                    value={formValues.type}
-                    onChange={(e) => updateField("type", e.target.value)}
-                    style={S.input}
+                    value={itemFormValues.type}
+                    onChange={(event) => updateField("type", event.target.value)}
+                    style={styles.input}
                   />
                 </Field>
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <Field label="Category" labelStyle={S.label}>
+                <Field label="Category" labelStyle={styles.label}>
                   <input
                     name="category"
                     placeholder="Category"
                     required
-                    value={formValues.category}
-                    onChange={(e) => updateField("category", e.target.value)}
-                    style={S.input}
+                    value={itemFormValues.category}
+                    onChange={(event) => updateField("category", event.target.value)}
+                    style={styles.input}
                   />
                 </Field>
 
-                <Field label="Season" labelStyle={S.label}>
+                <Field label="Season" labelStyle={styles.label}>
                   <input
                     name="season"
                     placeholder="Season"
                     required
-                    value={formValues.season}
-                    onChange={(e) => updateField("season", e.target.value)}
-                    style={S.input}
+                    value={itemFormValues.season}
+                    onChange={(event) => updateField("season", event.target.value)}
+                    style={styles.input}
                   />
                 </Field>
               </div>
 
-              <Field label="Collection name" labelStyle={S.label}>
+              <Field label="Collection name" labelStyle={styles.label}>
                 <input
                   name="collectionName"
                   placeholder="Collection name"
                   required
-                  value={formValues.collectionName}
-                  onChange={(e) => updateField("collectionName", e.target.value)}
-                  style={S.input}
+                  value={itemFormValues.collectionName}
+                  onChange={(event) => updateField("collectionName", event.target.value)}
+                  style={styles.input}
                 />
               </Field>
 
@@ -666,25 +625,25 @@ export default function AdminPage() {
                 Description
               </div>
 
-              <Field label="Short description" labelStyle={S.label}>
+              <Field label="Short description" labelStyle={styles.label}>
                 <input
                   name="shortDescription"
                   placeholder="Short description"
                   required
-                  value={formValues.shortDescription}
-                  onChange={(e) => updateField("shortDescription", e.target.value)}
-                  style={S.input}
+                  value={itemFormValues.shortDescription}
+                  onChange={(event) => updateField("shortDescription", event.target.value)}
+                  style={styles.input}
                 />
               </Field>
 
-              <Field label="Long description" labelStyle={S.label}>
+              <Field label="Long description" labelStyle={styles.label}>
                 <textarea
                   name="longDescription"
                   placeholder="Long description"
                   required
-                  value={formValues.longDescription}
-                  onChange={(e) => updateField("longDescription", e.target.value)}
-                  style={S.textarea}
+                  value={itemFormValues.longDescription}
+                  onChange={(event) => updateField("longDescription", event.target.value)}
+                  style={styles.textarea}
                 />
               </Field>
 
@@ -693,59 +652,69 @@ export default function AdminPage() {
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <Field label="Material" labelStyle={S.label}>
+                <Field label="Material" labelStyle={styles.label}>
                   <input
                     name="material"
                     placeholder="Material"
                     required
-                    value={formValues.material}
-                    onChange={(e) => updateField("material", e.target.value)}
-                    style={S.input}
+                    value={itemFormValues.material}
+                    onChange={(event) => updateField("material", event.target.value)}
+                    style={styles.input}
                   />
                 </Field>
 
-                <Field label="Products in collection" labelStyle={S.label}>
+                <Field label="Products in collection" labelStyle={styles.label}>
                   <input
                     name="productsInCollection"
                     type="number"
                     placeholder="Products in collection"
                     required
-                    value={formValues.productsInCollection}
-                    onChange={(e) => updateField("productsInCollection", e.target.value)}
-                    style={S.input}
+                    value={itemFormValues.productsInCollection}
+                    onChange={(event) =>
+                      updateField("productsInCollection", event.target.value)
+                    }
+                    style={styles.input}
                   />
                 </Field>
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <Field label="Available colors" hint="Comma separated" labelStyle={S.label}>
+                <Field
+                  label="Available colors"
+                  hint="Comma separated"
+                  labelStyle={styles.label}
+                >
                   <input
                     name="availableColors"
                     placeholder="e.g. white, beige, black"
-                    value={formValues.availableColors}
-                    onChange={(e) => updateField("availableColors", e.target.value)}
-                    style={S.input}
+                    value={itemFormValues.availableColors}
+                    onChange={(event) => updateField("availableColors", event.target.value)}
+                    style={styles.input}
                   />
                 </Field>
 
-                <Field label="Matching palette" hint="Comma separated" labelStyle={S.label}>
+                <Field
+                  label="Matching palette"
+                  hint="Comma separated"
+                  labelStyle={styles.label}
+                >
                   <input
                     name="matchingPalette"
                     placeholder="e.g. sand, clay, ash"
-                    value={formValues.matchingPalette}
-                    onChange={(e) => updateField("matchingPalette", e.target.value)}
-                    style={S.input}
+                    value={itemFormValues.matchingPalette}
+                    onChange={(event) => updateField("matchingPalette", event.target.value)}
+                    style={styles.input}
                   />
                 </Field>
               </div>
 
-              <Field label="Sizes" hint="Comma separated" labelStyle={S.label}>
+              <Field label="Sizes" hint="Comma separated" labelStyle={styles.label}>
                 <input
                   name="sizes"
                   placeholder="e.g. 20cm, 25cm, 30cm"
-                  value={formValues.sizes}
-                  onChange={(e) => updateField("sizes", e.target.value)}
-                  style={S.input}
+                  value={itemFormValues.sizes}
+                  onChange={(event) => updateField("sizes", event.target.value)}
+                  style={styles.input}
                 />
               </Field>
 
@@ -766,8 +735,8 @@ export default function AdminPage() {
                   <input
                     type="checkbox"
                     name="unique"
-                    checked={formValues.unique}
-                    onChange={(e) => updateField("unique", e.target.checked)}
+                    checked={itemFormValues.unique}
+                    onChange={(event) => updateField("unique", event.target.checked)}
                   />
                   <span style={{ fontSize: 13, fontWeight: 650 }}>Unique</span>
                 </label>
@@ -788,8 +757,8 @@ export default function AdminPage() {
                   <input
                     type="checkbox"
                     name="handmade"
-                    checked={formValues.handmade}
-                    onChange={(e) => updateField("handmade", e.target.checked)}
+                    checked={itemFormValues.handmade}
+                    onChange={(event) => updateField("handmade", event.target.checked)}
                   />
                   <span style={{ fontSize: 13, fontWeight: 650 }}>Handmade</span>
                 </label>
@@ -799,18 +768,9 @@ export default function AdminPage() {
                 Images
               </div>
 
-              {(
-                [
-                  ["Above", imagesAbove, setImagesAbove],
-                  ["Detailed", imagesDetailed, setImagesDetailed],
-                  ["Background", imagesBackground, setImagesBackground],
-                  ["HowToUse", imagesHowToUse, setImagesHowToUse],
-                ] satisfies Array<
-                  [string, ImagePreview[], React.Dispatch<React.SetStateAction<ImagePreview[]>>]
-                >
-              ).map(([label, list, setter]) => (
+              {imageUploadSections.map((section) => (
                 <div
-                  key={label}
+                  key={section.key}
                   style={{
                     border: "1px dashed rgba(0,0,0,0.18)",
                     borderRadius: 16,
@@ -818,9 +778,17 @@ export default function AdminPage() {
                     background: "rgba(255,255,255,0.7)",
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
-                    <div style={{ fontWeight: 850, fontSize: 13 }}>{label} Images</div>
-                    <div style={{ fontSize: 12, opacity: 0.7 }}>{list.length} selected</div>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "baseline",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <div style={{ fontWeight: 850, fontSize: 13 }}>{section.label} Images</div>
+                    <div style={{ fontSize: 12, opacity: 0.7 }}>
+                      {imagePreviewGroups[section.key].length} selected
+                    </div>
                   </div>
 
                   <div style={{ height: 10 }} />
@@ -829,11 +797,11 @@ export default function AdminPage() {
                     type="file"
                     multiple
                     accept="image/*"
-                    onChange={(e) => handleFileChange(e, setter)}
+                    onChange={(event) => handleFileChange(event, section.key)}
                     style={{ width: "100%" }}
                   />
 
-                  {renderImagePreviews(list, setter)}
+                  {renderImagePreviews(imagePreviewGroups[section.key], section.key)}
                 </div>
               ))}
 
@@ -854,54 +822,56 @@ export default function AdminPage() {
                 <div style={{ display: "flex", gap: 10 }}>
                   <button
                     type="submit"
-                    disabled={loading}
-                    style={{ ...S.button, opacity: loading ? 0.75 : 1, flex: 1 }}
+                    disabled={isSubmitting}
+                    style={{ ...styles.button, opacity: isSubmitting ? 0.75 : 1, flex: 1 }}
                   >
-                    {loading ? "Saving..." : "Create Item"}
+                    {isSubmitting ? "Saving..." : "Create Item"}
                   </button>
 
                   <button
                     type="button"
                     onClick={clearForm}
-                    disabled={loading}
-                    style={{ ...S.softButton, minWidth: 110 }}
+                    disabled={isSubmitting}
+                    style={{ ...styles.softButton, minWidth: 110 }}
                   >
                     Clear
                   </button>
                 </div>
 
-                {success && (
+                {showSuccess && (
                   <div style={{ color: "green", fontSize: 13, fontWeight: 650 }}>
                     Item created ✔
                   </div>
                 )}
 
-                {formError && (
-                  <div style={{ color: "#b00020", fontSize: 13 }}>
-                    {formError}
-                  </div>
-                )}
+                {formError && <div style={{ color: "#b00020", fontSize: 13 }}>{formError}</div>}
               </div>
             </form>
           </section>
 
           <section
             style={{
-              ...S.card,
+              ...styles.card,
               padding: 16,
               minHeight: 500,
               overflow: "scroll",
               height: "85vh",
             }}
           >
-            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "baseline",
+                justifyContent: "space-between",
+              }}
+            >
               <div style={{ fontWeight: 900, fontSize: 16 }}>Items</div>
               <div style={{ fontSize: 12, opacity: 0.6 }}>Latest first</div>
             </div>
 
             <div style={{ height: 12 }} />
 
-            <ItemsTable items={items} onDeleteClick={deleteItem} />
+            <ItemsTable items={catalogItems} onDeleteClick={handleDeleteItem} />
           </section>
         </div>
 
