@@ -20,6 +20,14 @@ function getHeroImage(item: Item) {
   );
 }
 
+function getAnimatedTitleLetters(name: string) {
+  return Array.from(name).map((character, index) => ({
+    key: `${character}-${index}`,
+    character: character === " " ? "\u00A0" : character,
+    delay: `${0.2 + index * 0.04}s`,
+  }));
+}
+
 export default function MobileHomeViewport({ items }: MobileHomeViewportProps) {
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [visibleSheetItem, setVisibleSheetItem] = useState<Item | null>(null);
@@ -124,6 +132,7 @@ export default function MobileHomeViewport({ items }: MobileHomeViewportProps) {
       ? [getHeroImage(activeItem)].filter(Boolean)
       : [];
   const selectedAboveImage = activeItem?.images.above[0] || "";
+  const animatedTitleLetters = activeItem ? getAnimatedTitleLetters(activeItem.name) : [];
 
   const closeSheet = (animated = true) => {
     if (!animated) {
@@ -197,6 +206,10 @@ export default function MobileHomeViewport({ items }: MobileHomeViewportProps) {
 
   return (
     <div className={styles.page} ref={scrollRef}>
+      <div className={styles.mobileLogo} aria-hidden="true">
+        BENCERA
+      </div>
+
       <main className={styles.grid}>
         {repeatedItems.map(({ key, item }) => {
           const heroImage = getHeroImage(item);
@@ -268,7 +281,18 @@ export default function MobileHomeViewport({ items }: MobileHomeViewportProps) {
               <div className={styles.sheetHandle} />
 
               <div className={styles.sheetHeader}>
-                <h2 className={styles.sheetTitle}>{activeItem.name}</h2>
+                <h2 key={activeItem.id} className={styles.sheetTitle} aria-label={activeItem.name}>
+                  {animatedTitleLetters.map((letter) => (
+                    <span
+                      key={letter.key}
+                      className={styles.sheetTitleLetter}
+                      style={{ animationDelay: letter.delay }}
+                      aria-hidden="true"
+                    >
+                      {letter.character}
+                    </span>
+                  ))}
+                </h2>
                 <a
                   href={activeItem.shopify}
                   target="_blank"

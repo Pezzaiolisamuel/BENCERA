@@ -1,185 +1,238 @@
-.dpLetter {
-  display: inline-block;
-  position: relative;
-  will-change: transform;
-}
-
-.dpVCarouselWrap {
+.overlay {
   position: fixed;
-  right: 0;
-  bottom: 0;
-  width: 100vw;
-  height: 100vh;
-  z-index: 200;
+  inset: 0;
+  z-index: 15;
   pointer-events: none;
-  background-color: transparent;
-  overflow: visible;
 }
 
-.dpVStage {
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-  background: transparent;
+.backdrop {
   position: absolute;
-  right: 0;
-  bottom: 0;
+  inset: 0;
+  border: 0;
+  background: rgba(11, 8, 5, 0.08);
+  pointer-events: auto;
 }
 
-.dpVSingleSlide {
-  width: auto;
-  height: auto;
+.panel {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: min(62vw, 980px);
+  height: 100vh;
+  pointer-events: auto;
   display: block;
-  will-change: transform;
-  transform: translate(50%, 50%);
+  padding: 0;
+  box-shadow: 30px 0 80px rgba(28, 20, 14, 0.14);
+  overflow: visible;
+  background: #f7efe4;
 }
 
-.dpVImg {
+.closeButton {
+  position: absolute;
+  top: 50%;
+  left: calc(min(62vw, 980px) - 27px);
+  transform: translateY(-50%);
+  z-index: 5;
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, 0.16);
+  background: #000;
+  color: #fff;
+  box-shadow: none;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.panelHeader {
+  position: absolute;
+  top: calc(44px + 10%);
+  right: 28px;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.title {
+  margin: 0;
+  max-width: none;
+  white-space: nowrap;
+  font-size: clamp(2.35rem, 3.4vw, 4rem);
+  font-weight: 300;
+  line-height: 0.94;
+  letter-spacing: -0.055em;
+  color: rgba(22, 14, 9, 0.96);
+  text-shadow: 0 2px 18px rgba(255, 255, 255, 0.42);
+  overflow: visible;
+}
+
+.titleLetter {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(110vh);
+  animation: titleLetterRise 0.82s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+.imageViewport {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.detailImage {
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: cover;
   display: block;
   user-select: none;
   pointer-events: none;
-  will-change: transform;
-  backface-visibility: hidden;
-  transform-style: preserve-3d;
-  filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.18));
+  animation: detailImageEnter 560ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.cheeseBoard {
-  width: 80vw;
-  height: 80vh;
-  border-radius: 18px;
-  background-position: center;
-  background-size: cover;
-  box-shadow: 3pc 3pc 10px rgba(0, 0, 0, 0.4);
-  background-color: #dedede;
-  position: fixed;
-  top: 100px;
-  left: 10%;
-  z-index: 30;
-  overflow: hidden;
-  background-repeat: no-repeat;
-}
-
-.dpTitleSingle {
-  font-size: clamp(42px, 8vw, 116px);
-  font-weight: 100;
-  letter-spacing: 0.08em;
-  line-height: 0.95;
-  text-transform: uppercase;
-  color: rgba(0, 0, 0, 0.92);
-  text-shadow: 3px 3px 5px white;
-}
-
-.boardBgBtn {
+.scrollCue {
   position: absolute;
-  top: 12px;
-  left: 12px;
-  width: 36px;
-  height: 36px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 4;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 12px 17px;
   border-radius: 999px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255, 255, 255, 0.75);
-  border: 1px solid rgba(0, 0, 0, 0.15);
-  cursor: pointer;
-  font-size: 16px;
-  line-height: 1;
-  z-index: 40;
-  backdrop-filter: blur(6px);
-  transition: transform 0.2s ease, background 0.2s ease;
-}
-
-.boardBgBtn:hover {
-  background: rgba(255, 255, 255, 0.95);
-  transform: scale(1.05);
-}
-
-.boardBgBtnIcon {
-  font-size: 15px;
-  line-height: 1;
-  opacity: 0.55;
-}
-
-.boardBgBtnLabel {
-  font-size: 13px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: rgba(0, 0, 0, 0.7);
-  white-space: nowrap;
-}
-
-.boardBgBtnRefined {
-  width: 250px;
-  position: absolute;
-  top: 18px;
-  left: 18px;
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 18px 10px 14px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.65);
-  border: none;
-  cursor: pointer;
-  z-index: 40;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.6) inset,
-    0 8px 24px rgba(0, 0, 0, 0.12);
-  transition:
-    background 0.25s ease,
-    box-shadow 0.25s ease,
-    transform 0.2s ease;
-}
-
-.boardBgBtnRefined:hover {
-  background: rgba(255, 255, 255, 0.85);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.7) inset,
-    0 12px 32px rgba(0, 0, 0, 0.16);
-  transform: translateY(-1px);
-}
-
-.boardBgBtnRefined:active {
-  transform: translateY(0);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.5) inset,
-    0 6px 16px rgba(0, 0, 0, 0.14);
-}
-
-.cheeseBoardBgOverlay {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-position: center;
-  background-size: cover;
-  background-repeat: no-repeat;
-  opacity: 0;
-  will-change: opacity, transform;
-}
-
-.dpClose {
-  position: absolute;
-  top: 24px;
-  right: 24px;
-  z-index: 45;
-  width: 52px;
-  height: 52px;
-  border-radius: 999px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.36);
   backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  cursor: pointer;
-  font-size: 28px;
-  line-height: 1;
+  box-shadow: 0 12px 30px rgba(22, 15, 10, 0.08);
+  animation: scrollCueFadeOut 2s ease forwards;
+}
+
+.scrollCueText {
+  font-size: 0.82rem;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(22, 14, 9, 0.68);
+}
+
+.scrollCueIcon {
+  width: 19px;
+  height: 34px;
+  border: 1.5px solid rgba(22, 14, 9, 0.52);
+  border-radius: 999px;
+  position: relative;
+}
+
+.previewWrap {
+  position: absolute;
+  top: 50%;
+  right: -8%;
+  width: min(39.1vw, 644px);
+  height: min(39.1vw, 644px);
+  transform: translateY(-50%);
+  z-index: 2;
+  pointer-events: none;
+  overflow: visible;
+  background: transparent;
+}
+
+.previewImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  filter: drop-shadow(0 24px 46px rgba(18, 13, 8, 0.2));
+  transform: translateX(2%) scale(1.04);
+}
+
+.scrollCueIcon::after {
+  content: "";
+  position: absolute;
+  top: 5px;
+  left: 50%;
+  width: 4px;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(22, 14, 9, 0.56);
+  transform: translateX(-50%);
+  animation: scrollCueMove 1.8s ease-in-out infinite;
+}
+
+.purchaseButton {
+  position: absolute;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  z-index: 4;
+  width: 53px;
+  height: 53px;
   display: grid;
   place-items: center;
+  background: linear-gradient(180deg, #d8b056 0%, #ba8932 100%);
+  border-radius: 999px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 12px 30px rgba(22, 15, 10, 0.08);
+}
+
+.purchaseIcon {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  display: block;
+}
+
+@keyframes detailImageEnter {
+  from {
+    opacity: 0;
+    transform: scale(1.03);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes titleLetterRise {
+  from {
+    opacity: 0;
+    transform: translateY(110vh);
+  }
+
+  60% {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scrollCueMove {
+  0%,
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  30% {
+    opacity: 1;
+  }
+
+  65% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(9px);
+  }
+}
+
+@keyframes scrollCueFadeOut {
+  0%,
+  70% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    visibility: hidden;
+  }
 }
