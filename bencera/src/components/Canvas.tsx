@@ -270,6 +270,42 @@ const Canvas = React.forwardRef<HTMLDivElement, CanvasProps>(({ items, onItemCli
     gsap.set(nodes, { xPercent: -50, yPercent: -50, transformOrigin: "50% 50%" });
 
     gsap.killTweensOf(nodes);
+
+    const triggerIntroZoom = () => {
+      if (didIntroZoom.current) return;
+      if (userInteracted.current) return;
+
+      didIntroZoom.current = true;
+
+      const targetScale = computeScaleForVisibleItems(11);
+
+      if (targetScale > focus.current.scale) {
+        const applyFocus = applyFocusRef.current;
+        if (!applyFocus) return;
+
+        const cx = window.innerWidth / 2;
+        const cy = window.innerHeight / 2;
+
+        const s1 = focus.current.scale;
+        const s2 = targetScale;
+
+        const wx = (cx - focus.current.x) / s1;
+        const wy = (cy - focus.current.y) / s1;
+
+        const target = { scale: s2, x: cx - wx * s2, y: cy - wy * s2 };
+
+        gsap.killTweensOf(focus.current);
+        gsap.to(focus.current, {
+          scale: target.scale,
+          x: target.x,
+          y: target.y,
+          duration: 1.7,
+          ease: "power3.out",
+          onUpdate: applyFocus,
+        });
+      }
+    };
+
     gsap.fromTo(
       nodes,
       { opacity: 0, scale: 0 },
@@ -279,39 +315,8 @@ const Canvas = React.forwardRef<HTMLDivElement, CanvasProps>(({ items, onItemCli
         duration: 0.45,
         stagger: { each: 0.01, from: "random" },
         ease: "back.out(1.6)",
-        onComplete: () => {
-          if (didIntroZoom.current) return;
-          if (userInteracted.current) return;
-
-          didIntroZoom.current = true;
-
-          const targetScale = computeScaleForVisibleItems(11);
-
-          if (targetScale > focus.current.scale) {
-            const applyFocus = applyFocusRef.current;
-            if (!applyFocus) return;
-
-            const cx = window.innerWidth / 2;
-            const cy = window.innerHeight / 2;
-
-            const s1 = focus.current.scale;
-            const s2 = targetScale;
-
-            const wx = (cx - focus.current.x) / s1;
-            const wy = (cy - focus.current.y) / s1;
-
-            const target = { scale: s2, x: cx - wx * s2, y: cy - wy * s2 };
-
-            gsap.killTweensOf(focus.current);
-            gsap.to(focus.current, {
-              scale: target.scale,
-              x: target.x,
-              y: target.y,
-              duration: 1.4,
-              ease: "power3.out",
-              onUpdate: applyFocus,
-            });
-          }
+        onStart: () => {
+          window.setTimeout(triggerIntroZoom, 500);
         },
       }
     );
@@ -477,8 +482,15 @@ const Canvas = React.forwardRef<HTMLDivElement, CanvasProps>(({ items, onItemCli
   useEffect(() => {
     if (!ready) return;
 
-    const SCROLL_SPEED = 1;
-    const SMOOTH_DURATION = 0.6;
+    const SCROLL_SPEED = 0.3;
+    const SMOOTH_DURATION = 1.15;
+    const MAX_SCROLL_DELTA = 42;
+
+    const normalizeWheelDelta = (delta: number, deltaMode: number) => {
+      if (deltaMode === 1) return delta * 16;
+      if (deltaMode === 2) return delta * window.innerHeight;
+      return delta;
+    };
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
@@ -486,18 +498,26 @@ const Canvas = React.forwardRef<HTMLDivElement, CanvasProps>(({ items, onItemCli
 
       gsap.killTweensOf(focus.current);
 
-      const dx = e.shiftKey ? -e.deltaY : -e.deltaX;
-      const dy = -e.deltaY;
+      const normalizedDeltaX = normalizeWheelDelta(e.deltaX, e.deltaMode);
+      const normalizedDeltaY = normalizeWheelDelta(e.deltaY, e.deltaMode);
+      const dx = e.shiftKey ? -normalizedDeltaY : -normalizedDeltaX;
+      const dy = -normalizedDeltaY;
 
-      focus.current.x += dx * SCROLL_SPEED;
-      focus.current.y += dy * SCROLL_SPEED;
+      const nextXDelta =
+        Math.sign(dx) * Math.min(Math.abs(dx) * SCROLL_SPEED, MAX_SCROLL_DELTA);
+      const nextYDelta =
+        Math.sign(dy) * Math.min(Math.abs(dy) * SCROLL_SPEED, MAX_SCROLL_DELTA);
+
+      focusTarget.current.x += nextXDelta;
+      focusTarget.current.y += nextYDelta;
 
       gsap.to(focus.current, {
-        x: focus.current.x,
-        y: focus.current.y,
+        x: focusTarget.current.x,
+        y: focusTarget.current.y,
         duration: SMOOTH_DURATION,
-        ease: "power3.out",
+        ease: "power4.out",
         onUpdate: applyFocusRef.current!,
+        overwrite: true,
       });
     };
 
