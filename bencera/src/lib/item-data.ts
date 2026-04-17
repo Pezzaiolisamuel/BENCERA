@@ -7,6 +7,13 @@ export const itemImageFieldMap: Record<ItemImageKey, keyof StoredItem> = {
   howToUse: "imagesHowToUse",
 };
 
+const storedItemImageFieldNames = [
+  "imagesAbove",
+  "imagesDetailed",
+  "imagesBackground",
+  "imagesHowToUse",
+] as const;
+
 export function safeParseStringArray(value: string | null | undefined): string[] {
   if (!value) return [];
 
@@ -39,8 +46,15 @@ export function parseStoredItems(records: StoredItem[]): Item[] {
   return records.map(parseStoredItem);
 }
 
-export function getStoredItemImageUrls(record: Pick<StoredItem, keyof typeof itemImageFieldMap>): string[] {
-  return Object.values(itemImageFieldMap).flatMap((fieldName) =>
+type StoredItemImageFields = {
+  imagesAbove: string | null;
+  imagesDetailed: string | null;
+  imagesBackground: string | null;
+  imagesHowToUse: string | null;
+};
+
+export function getStoredItemImageUrls(record: StoredItemImageFields): string[] {
+  return storedItemImageFieldNames.flatMap((fieldName) =>
     safeParseStringArray(record[fieldName])
   );
 }
