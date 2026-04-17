@@ -91,7 +91,9 @@ export default function DetailsPanel({ item, onClose }: DetailsPanelProps) {
       yoyo: true,
     });
 
-    return () => tween.kill();
+    return () => {
+      tween.kill();
+    };
   }, [item, aboveImage]);
 
   useEffect(() => {
