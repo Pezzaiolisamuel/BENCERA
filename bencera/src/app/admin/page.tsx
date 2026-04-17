@@ -10,9 +10,12 @@ import { useEffect, useMemo, useState } from "react";
 import ItemsTable from "./components/ItemsTable";
 import {
   buildItemFormData,
+  createItemFormValuesFromItem,
   createEmptyImagePreviewGroups,
+  getImagePreviewCount,
   imageUploadSections,
   initialItemFormValues,
+  maxImagesPerItem,
   type ImagePreview,
   type ImagePreviewGroups,
   type ItemFormValues,
@@ -71,9 +74,21 @@ export default function AdminPage() {
   const [imagePreviewGroups, setImagePreviewGroups] = useState<ImagePreviewGroups>(
     createEmptyImagePreviewGroups
   );
+  const [selectedEditItem, setSelectedEditItem] = useState<Item | null>(null);
+  const [editFormValues, setEditFormValues] = useState<ItemFormValues>(initialItemFormValues);
+  const [editDetailedImagePreviews, setEditDetailedImagePreviews] = useState<ImagePreview[]>([]);
+  const [editFormError, setEditFormError] = useState<string | null>(null);
+  const [isUpdatingItem, setIsUpdatingItem] = useState(false);
 
   const updateField = (fieldName: keyof ItemFormValues, value: string | boolean) => {
     setItemFormValues((currentValues) => ({
+      ...currentValues,
+      [fieldName]: value,
+    }));
+  };
+
+  const updateEditField = (fieldName: keyof ItemFormValues, value: string | boolean) => {
+    setEditFormValues((currentValues) => ({
       ...currentValues,
       [fieldName]: value,
     }));
@@ -239,6 +254,22 @@ export default function AdminPage() {
     }
   };
 
+  const openEditModal = (item: Item) => {
+    setSelectedEditItem(item);
+    setEditFormValues(createItemFormValuesFromItem(item));
+    setEditDetailedImagePreviews([]);
+    setEditFormError(null);
+  };
+
+  const closeEditModal = () => {
+    revokePreviewUrls(editDetailedImagePreviews);
+    setSelectedEditItem(null);
+    setEditFormValues(initialItemFormValues);
+    setEditDetailedImagePreviews([]);
+    setEditFormError(null);
+    setIsUpdatingItem(false);
+  };
+
   const handleFileChange = (
     event: ChangeEvent<HTMLInputElement>,
     imageKey: ItemImageKey
@@ -246,10 +277,27 @@ export default function AdminPage() {
     const files = event.target.files;
     if (!files) return;
 
-    const nextPreviews: ImagePreview[] = Array.from(files).map((file) => ({
+    const currentImageCount = getImagePreviewCount(imagePreviewGroups);
+    const remainingSlots = maxImagesPerItem - currentImageCount;
+
+    if (remainingSlots <= 0) {
+      setFormError(`You can upload a maximum of ${maxImagesPerItem} images per item.`);
+      event.target.value = "";
+      return;
+    }
+
+    const nextPreviews: ImagePreview[] = Array.from(files)
+      .slice(0, remainingSlots)
+      .map((file) => ({
       file,
       url: URL.createObjectURL(file),
-    }));
+      }));
+
+    if (nextPreviews.length < files.length) {
+      setFormError(`Only ${maxImagesPerItem} images total are allowed per item.`);
+    } else {
+      setFormError(null);
+    }
 
     setImagePreviewGroups((currentGroups) => ({
       ...currentGroups,
@@ -284,6 +332,48 @@ export default function AdminPage() {
     setShowSuccess(false);
   };
 
+  const handleEditDetailedImagesChange = (event: ChangeEvent<HTMLInputElement>) => {
+    if (!selectedEditItem) return;
+
+    const files = event.target.files;
+    if (!files) return;
+
+    const remainingSlots = maxImagesPerItem - (selectedEditItem.images.detailed.length + editDetailedImagePreviews.length);
+
+    if (remainingSlots <= 0) {
+      setEditFormError(`A piece can have a maximum of ${maxImagesPerItem} detailed images.`);
+      event.target.value = "";
+      return;
+    }
+
+    const nextPreviews = Array.from(files)
+      .slice(0, remainingSlots)
+      .map((file) => ({
+        file,
+        url: URL.createObjectURL(file),
+      }));
+
+    if (nextPreviews.length < files.length) {
+      setEditFormError(`Only ${maxImagesPerItem} detailed images are allowed per piece.`);
+    } else {
+      setEditFormError(null);
+    }
+
+    setEditDetailedImagePreviews((currentPreviews) => [...currentPreviews, ...nextPreviews]);
+    event.target.value = "";
+  };
+
+  const removeEditDetailedPreview = (index: number) => {
+    setEditDetailedImagePreviews((currentPreviews) => {
+      const nextPreviews = [...currentPreviews];
+      const [removedPreview] = nextPreviews.splice(index, 1);
+      if (removedPreview) {
+        URL.revokeObjectURL(removedPreview.url);
+      }
+      return nextPreviews;
+    });
+  };
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSubmitting(true);
@@ -315,6 +405,69 @@ export default function AdminPage() {
       setFormError(message);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleUpdateItem = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedEditItem) return;
+
+    setIsUpdatingItem(true);
+    setEditFormError(null);
+
+    try {
+      const validationError = validateItemForm(editFormValues);
+      if (validationError) {
+        throw new Error(validationError);
+      }
+
+      const confirmed = window.confirm(
+        `Are you sure you want to update "${selectedEditItem.name}" in the database?`
+      );
+
+      if (!confirmed) {
+        setIsUpdatingItem(false);
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("id", selectedEditItem.id);
+      formData.append("name", editFormValues.name);
+      formData.append("type", editFormValues.type);
+      formData.append("category", editFormValues.category);
+      formData.append("season", editFormValues.season);
+      formData.append("collectionName", editFormValues.collectionName);
+      formData.append("shortDescription", editFormValues.shortDescription);
+      formData.append("longDescription", editFormValues.longDescription);
+      formData.append("material", editFormValues.material);
+      formData.append("productsInCollection", editFormValues.productsInCollection);
+      formData.append("availableColors", editFormValues.availableColors);
+      formData.append("matchingPalette", editFormValues.matchingPalette);
+      formData.append("sizes", editFormValues.sizes);
+      formData.append("unique", String(editFormValues.unique));
+      formData.append("handmade", String(editFormValues.handmade));
+
+      for (const preview of editDetailedImagePreviews) {
+        formData.append("imagesDetailed", preview.file);
+      }
+
+      const response = await fetch("/api/items", {
+        method: "PATCH",
+        body: formData,
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to update item");
+      }
+
+      await fetchItems();
+      closeEditModal();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to update item";
+      console.error(error);
+      setEditFormError(message);
+      setIsUpdatingItem(false);
     }
   };
 
@@ -367,6 +520,272 @@ export default function AdminPage() {
         </div>
       ))}
     </div>
+  );
+
+  const renderStandaloneImagePreviews = (
+    previews: ImagePreview[],
+    onRemove: (index: number) => void
+  ) => (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+      {previews.map((image, index) => (
+        <div
+          key={`${image.url}-${index}`}
+          style={{
+            position: "relative",
+            width: 66,
+            height: 66,
+            borderRadius: 12,
+            overflow: "hidden",
+            border: "1px solid rgba(0,0,0,0.10)",
+            background: "rgba(255,255,255,0.9)",
+          }}
+        >
+          <img
+            src={image.url}
+            alt=""
+            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          />
+          <button
+            type="button"
+            onClick={() => onRemove(index)}
+            style={{
+              position: "absolute",
+              top: 6,
+              right: 6,
+              background: "rgba(0,0,0,0.75)",
+              color: "white",
+              border: "none",
+              borderRadius: 999,
+              width: 22,
+              height: 22,
+              cursor: "pointer",
+              lineHeight: "22px",
+              textAlign: "center",
+              fontWeight: 800,
+            }}
+            aria-label="Remove image"
+            title="Remove"
+          >
+            x
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+
+  const renderItemFormFields = (
+    values: ItemFormValues,
+    onFieldChange: (fieldName: keyof ItemFormValues, value: string | boolean) => void,
+    keyPrefix: string
+  ) => (
+    <>
+      <div style={{ fontWeight: 800, fontSize: 13, opacity: 0.8 }}>Basic info</div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <Field label="Name" labelStyle={styles.label}>
+          <input
+            name={`${keyPrefix}-name`}
+            placeholder="Item name"
+            required
+            value={values.name}
+            onChange={(event) => onFieldChange("name", event.target.value)}
+            style={styles.input}
+          />
+        </Field>
+
+        <Field label="Shopify" labelStyle={styles.label} hint="Product or collection link">
+          <input
+            name={`${keyPrefix}-shopify`}
+            placeholder="shopify.com"
+            required
+            value={values.shopify}
+            onChange={(event) => onFieldChange("shopify", event.target.value)}
+            style={styles.input}
+          />
+        </Field>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <Field label="Type" labelStyle={styles.label}>
+          <input
+            name={`${keyPrefix}-type`}
+            placeholder="Type"
+            required
+            value={values.type}
+            onChange={(event) => onFieldChange("type", event.target.value)}
+            style={styles.input}
+          />
+        </Field>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <Field label="Category" labelStyle={styles.label}>
+          <input
+            name={`${keyPrefix}-category`}
+            placeholder="Category"
+            required
+            value={values.category}
+            onChange={(event) => onFieldChange("category", event.target.value)}
+            style={styles.input}
+          />
+        </Field>
+
+        <Field label="Season" labelStyle={styles.label}>
+          <input
+            name={`${keyPrefix}-season`}
+            placeholder="Season"
+            required
+            value={values.season}
+            onChange={(event) => onFieldChange("season", event.target.value)}
+            style={styles.input}
+          />
+        </Field>
+      </div>
+
+      <Field label="Collection name" labelStyle={styles.label}>
+        <input
+          name={`${keyPrefix}-collectionName`}
+          placeholder="Collection name"
+          required
+          value={values.collectionName}
+          onChange={(event) => onFieldChange("collectionName", event.target.value)}
+          style={styles.input}
+        />
+      </Field>
+
+      <div style={{ fontWeight: 800, fontSize: 13, opacity: 0.8, marginTop: 4 }}>
+        Description
+      </div>
+
+      <Field label="Short description" labelStyle={styles.label}>
+        <input
+          name={`${keyPrefix}-shortDescription`}
+          placeholder="Short description"
+          required
+          value={values.shortDescription}
+          onChange={(event) => onFieldChange("shortDescription", event.target.value)}
+          style={styles.input}
+        />
+      </Field>
+
+      <Field label="Long description" labelStyle={styles.label}>
+        <textarea
+          name={`${keyPrefix}-longDescription`}
+          placeholder="Long description"
+          required
+          value={values.longDescription}
+          onChange={(event) => onFieldChange("longDescription", event.target.value)}
+          style={styles.textarea}
+        />
+      </Field>
+
+      <div style={{ fontWeight: 800, fontSize: 13, opacity: 0.8, marginTop: 4 }}>
+        Details
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <Field label="Material" labelStyle={styles.label}>
+          <input
+            name={`${keyPrefix}-material`}
+            placeholder="Material"
+            required
+            value={values.material}
+            onChange={(event) => onFieldChange("material", event.target.value)}
+            style={styles.input}
+          />
+        </Field>
+
+        <Field label="Products in collection" labelStyle={styles.label}>
+          <input
+            name={`${keyPrefix}-productsInCollection`}
+            type="number"
+            placeholder="Products in collection"
+            required
+            value={values.productsInCollection}
+            onChange={(event) => onFieldChange("productsInCollection", event.target.value)}
+            style={styles.input}
+          />
+        </Field>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <Field label="Available colors" hint="Comma separated" labelStyle={styles.label}>
+          <input
+            name={`${keyPrefix}-availableColors`}
+            placeholder="e.g. white, beige, black"
+            value={values.availableColors}
+            onChange={(event) => onFieldChange("availableColors", event.target.value)}
+            style={styles.input}
+          />
+        </Field>
+
+        <Field label="Matching palette" hint="Comma separated" labelStyle={styles.label}>
+          <input
+            name={`${keyPrefix}-matchingPalette`}
+            placeholder="e.g. sand, clay, ash"
+            value={values.matchingPalette}
+            onChange={(event) => onFieldChange("matchingPalette", event.target.value)}
+            style={styles.input}
+          />
+        </Field>
+      </div>
+
+      <Field label="Sizes" hint="Comma separated" labelStyle={styles.label}>
+        <input
+          name={`${keyPrefix}-sizes`}
+          placeholder="e.g. 20cm, 25cm, 30cm"
+          value={values.sizes}
+          onChange={(event) => onFieldChange("sizes", event.target.value)}
+          style={styles.input}
+        />
+      </Field>
+
+      <div style={{ display: "flex", gap: 12 }}>
+        <label
+          style={{
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "12px 12px",
+            borderRadius: 14,
+            border: "1px solid rgba(0,0,0,0.10)",
+            background: "rgba(255,255,255,0.75)",
+            cursor: "pointer",
+          }}
+        >
+          <input
+            type="checkbox"
+            name={`${keyPrefix}-unique`}
+            checked={values.unique}
+            onChange={(event) => onFieldChange("unique", event.target.checked)}
+          />
+          <span style={{ fontSize: 13, fontWeight: 650 }}>Unique</span>
+        </label>
+
+        <label
+          style={{
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "12px 12px",
+            borderRadius: 14,
+            border: "1px solid rgba(0,0,0,0.10)",
+            background: "rgba(255,255,255,0.75)",
+            cursor: "pointer",
+          }}
+        >
+          <input
+            type="checkbox"
+            name={`${keyPrefix}-handmade`}
+            checked={values.handmade}
+            onChange={(event) => onFieldChange("handmade", event.target.checked)}
+          />
+          <span style={{ fontSize: 13, fontWeight: 650 }}>Handmade</span>
+        </label>
+      </div>
+    </>
   );
 
   return (
@@ -560,212 +979,13 @@ export default function AdminPage() {
               onSubmit={handleSubmit}
               style={{ display: "flex", flexDirection: "column", gap: 14 }}
             >
-              <div style={{ fontWeight: 800, fontSize: 13, opacity: 0.8 }}>Basic info</div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <Field label="Name" labelStyle={styles.label}>
-                  <input
-                    name="name"
-                    placeholder="Item name"
-                    required
-                    value={itemFormValues.name}
-                    onChange={(event) => updateField("name", event.target.value)}
-                    style={styles.input}
-                  />
-                </Field>
-
-                <Field label="Type" labelStyle={styles.label}>
-                  <input
-                    name="type"
-                    placeholder="Type"
-                    required
-                    value={itemFormValues.type}
-                    onChange={(event) => updateField("type", event.target.value)}
-                    style={styles.input}
-                  />
-                </Field>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <Field label="Category" labelStyle={styles.label}>
-                  <input
-                    name="category"
-                    placeholder="Category"
-                    required
-                    value={itemFormValues.category}
-                    onChange={(event) => updateField("category", event.target.value)}
-                    style={styles.input}
-                  />
-                </Field>
-
-                <Field label="Season" labelStyle={styles.label}>
-                  <input
-                    name="season"
-                    placeholder="Season"
-                    required
-                    value={itemFormValues.season}
-                    onChange={(event) => updateField("season", event.target.value)}
-                    style={styles.input}
-                  />
-                </Field>
-              </div>
-
-              <Field label="Collection name" labelStyle={styles.label}>
-                <input
-                  name="collectionName"
-                  placeholder="Collection name"
-                  required
-                  value={itemFormValues.collectionName}
-                  onChange={(event) => updateField("collectionName", event.target.value)}
-                  style={styles.input}
-                />
-              </Field>
-
-              <div style={{ fontWeight: 800, fontSize: 13, opacity: 0.8, marginTop: 4 }}>
-                Description
-              </div>
-
-              <Field label="Short description" labelStyle={styles.label}>
-                <input
-                  name="shortDescription"
-                  placeholder="Short description"
-                  required
-                  value={itemFormValues.shortDescription}
-                  onChange={(event) => updateField("shortDescription", event.target.value)}
-                  style={styles.input}
-                />
-              </Field>
-
-              <Field label="Long description" labelStyle={styles.label}>
-                <textarea
-                  name="longDescription"
-                  placeholder="Long description"
-                  required
-                  value={itemFormValues.longDescription}
-                  onChange={(event) => updateField("longDescription", event.target.value)}
-                  style={styles.textarea}
-                />
-              </Field>
-
-              <div style={{ fontWeight: 800, fontSize: 13, opacity: 0.8, marginTop: 4 }}>
-                Details
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <Field label="Material" labelStyle={styles.label}>
-                  <input
-                    name="material"
-                    placeholder="Material"
-                    required
-                    value={itemFormValues.material}
-                    onChange={(event) => updateField("material", event.target.value)}
-                    style={styles.input}
-                  />
-                </Field>
-
-                <Field label="Products in collection" labelStyle={styles.label}>
-                  <input
-                    name="productsInCollection"
-                    type="number"
-                    placeholder="Products in collection"
-                    required
-                    value={itemFormValues.productsInCollection}
-                    onChange={(event) =>
-                      updateField("productsInCollection", event.target.value)
-                    }
-                    style={styles.input}
-                  />
-                </Field>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <Field
-                  label="Available colors"
-                  hint="Comma separated"
-                  labelStyle={styles.label}
-                >
-                  <input
-                    name="availableColors"
-                    placeholder="e.g. white, beige, black"
-                    value={itemFormValues.availableColors}
-                    onChange={(event) => updateField("availableColors", event.target.value)}
-                    style={styles.input}
-                  />
-                </Field>
-
-                <Field
-                  label="Matching palette"
-                  hint="Comma separated"
-                  labelStyle={styles.label}
-                >
-                  <input
-                    name="matchingPalette"
-                    placeholder="e.g. sand, clay, ash"
-                    value={itemFormValues.matchingPalette}
-                    onChange={(event) => updateField("matchingPalette", event.target.value)}
-                    style={styles.input}
-                  />
-                </Field>
-              </div>
-
-              <Field label="Sizes" hint="Comma separated" labelStyle={styles.label}>
-                <input
-                  name="sizes"
-                  placeholder="e.g. 20cm, 25cm, 30cm"
-                  value={itemFormValues.sizes}
-                  onChange={(event) => updateField("sizes", event.target.value)}
-                  style={styles.input}
-                />
-              </Field>
-
-              <div style={{ display: "flex", gap: 12 }}>
-                <label
-                  style={{
-                    flex: 1,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    padding: "12px 12px",
-                    borderRadius: 14,
-                    border: "1px solid rgba(0,0,0,0.10)",
-                    background: "rgba(255,255,255,0.75)",
-                    cursor: "pointer",
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    name="unique"
-                    checked={itemFormValues.unique}
-                    onChange={(event) => updateField("unique", event.target.checked)}
-                  />
-                  <span style={{ fontSize: 13, fontWeight: 650 }}>Unique</span>
-                </label>
-
-                <label
-                  style={{
-                    flex: 1,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    padding: "12px 12px",
-                    borderRadius: 14,
-                    border: "1px solid rgba(0,0,0,0.10)",
-                    background: "rgba(255,255,255,0.75)",
-                    cursor: "pointer",
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    name="handmade"
-                    checked={itemFormValues.handmade}
-                    onChange={(event) => updateField("handmade", event.target.checked)}
-                  />
-                  <span style={{ fontSize: 13, fontWeight: 650 }}>Handmade</span>
-                </label>
-              </div>
+              {renderItemFormFields(itemFormValues, updateField, "create")}
 
               <div style={{ fontWeight: 800, fontSize: 13, opacity: 0.8, marginTop: 4 }}>
                 Images
+              </div>
+              <div style={{ fontSize: 12, opacity: 0.65 }}>
+                Maximum {maxImagesPerItem} uploaded images total per item.
               </div>
 
               {imageUploadSections.map((section) => (
@@ -871,12 +1091,167 @@ export default function AdminPage() {
 
             <div style={{ height: 12 }} />
 
-            <ItemsTable items={catalogItems} onDeleteClick={handleDeleteItem} />
+            <ItemsTable
+              items={catalogItems}
+              onDeleteClick={handleDeleteItem}
+              onEditClick={openEditModal}
+            />
           </section>
         </div>
 
         <div style={{ height: 28 }} />
       </div>
+
+      {selectedEditItem ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9500,
+            display: "grid",
+            placeItems: "center",
+            padding: 16,
+          }}
+        >
+          <div
+            onClick={closeEditModal}
+            style={{
+              position: "absolute",
+              inset: 0,
+              background: "rgba(0,0,0,0.35)",
+              backdropFilter: "blur(10px)",
+              WebkitBackdropFilter: "blur(10px)",
+            }}
+          />
+
+          <form
+            onSubmit={handleUpdateItem}
+            style={{
+              ...styles.card,
+              position: "relative",
+              width: "min(760px, 100%)",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              padding: 18,
+              display: "flex",
+              flexDirection: "column",
+              gap: 14,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "start",
+                justifyContent: "space-between",
+                gap: 12,
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 850 }}>Update Item</div>
+                <div style={{ fontSize: 12, opacity: 0.65 }}>
+                  Edit item information for {selectedEditItem.name}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeEditModal}
+                style={{ ...styles.softButton, minWidth: 44, padding: 0 }}
+                aria-label="Close edit modal"
+              >
+                x
+              </button>
+            </div>
+
+            {renderItemFormFields(editFormValues, updateEditField, "edit")}
+
+            <div style={{ fontWeight: 800, fontSize: 13, opacity: 0.8, marginTop: 4 }}>
+              Add Detailed Images
+            </div>
+            <div style={{ fontSize: 12, opacity: 0.65 }}>
+              Existing detailed images: {selectedEditItem.images.detailed.length}. Maximum {maxImagesPerItem} total.
+            </div>
+
+            <div
+              style={{
+                border: "1px dashed rgba(0,0,0,0.18)",
+                borderRadius: 16,
+                padding: 12,
+                background: "rgba(255,255,255,0.7)",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "baseline",
+                  justifyContent: "space-between",
+                }}
+              >
+                <div style={{ fontWeight: 850, fontSize: 13 }}>New Detailed Images</div>
+                <div style={{ fontSize: 12, opacity: 0.7 }}>
+                  {editDetailedImagePreviews.length} selected
+                </div>
+              </div>
+
+              <div style={{ height: 10 }} />
+
+              <input
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={handleEditDetailedImagesChange}
+                style={{ width: "100%" }}
+              />
+
+              {renderStandaloneImagePreviews(
+                editDetailedImagePreviews,
+                removeEditDetailedPreview
+              )}
+            </div>
+
+            <div
+              style={{
+                position: "sticky",
+                bottom: -18,
+                background: "rgba(255,255,255,0.97)",
+                paddingTop: 12,
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+                borderTop: "1px solid rgba(0,0,0,0.06)",
+              }}
+            >
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button
+                  type="submit"
+                  disabled={isUpdatingItem}
+                  style={{
+                    ...styles.button,
+                    opacity: isUpdatingItem ? 0.75 : 1,
+                    flex: 1,
+                    minWidth: 180,
+                  }}
+                >
+                  {isUpdatingItem ? "Updating..." : "Confirm Update"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={closeEditModal}
+                  disabled={isUpdatingItem}
+                  style={{ ...styles.softButton, minWidth: 130 }}
+                >
+                  Cancel
+                </button>
+              </div>
+
+              {editFormError ? (
+                <div style={{ color: "#b00020", fontSize: 13 }}>{editFormError}</div>
+              ) : null}
+            </div>
+          </form>
+        </div>
+      ) : null}
     </>
   );
 }

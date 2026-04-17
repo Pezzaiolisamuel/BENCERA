@@ -1,4 +1,4 @@
-import type { ItemImageKey } from "@/types/item";
+import type { Item, ItemImageKey } from "@/types/item";
 
 export interface ImagePreview {
   file: File;
@@ -7,6 +7,7 @@ export interface ImagePreview {
 
 export type ItemFormValues = {
   name: string;
+  shopify: string;
   type: string;
   category: string;
   season: string;
@@ -24,9 +25,11 @@ export type ItemFormValues = {
 
 export type ImagePreviewGroups = Record<ItemImageKey, ImagePreview[]>;
 export type ImageUploadFieldName = "imagesAbove" | "imagesDetailed" | "imagesBackground" | "imagesHowToUse";
+export const maxImagesPerItem = 5;
 
 export const initialItemFormValues: ItemFormValues = {
   name: "",
+  shopify: "shopify.com",
   type: "",
   category: "",
   season: "",
@@ -60,6 +63,7 @@ export function createEmptyImagePreviewGroups(): ImagePreviewGroups {
 
 export const requiredItemFormFields: Array<keyof ItemFormValues> = [
   "name",
+  "shopify",
   "type",
   "category",
   "season",
@@ -92,10 +96,35 @@ export function validateItemForm(values: ItemFormValues) {
   return null;
 }
 
+export function createItemFormValuesFromItem(item: Item): ItemFormValues {
+  return {
+    name: item.name,
+    shopify: item.shopify || "shopify.com",
+    type: item.type,
+    category: item.category,
+    season: item.season,
+    collectionName: item.collectionName,
+    shortDescription: item.shortDescription,
+    longDescription: item.longDescription,
+    material: item.material,
+    productsInCollection: String(item.productsInCollection),
+    availableColors: item.availableColors.join(", "),
+    matchingPalette: item.matchingPalette.join(", "),
+    sizes: item.sizes.join(", "),
+    unique: item.unique,
+    handmade: item.handmade,
+  };
+}
+
+export function getImagePreviewCount(groups: ImagePreviewGroups) {
+  return groups.above.length + groups.detailed.length + groups.background.length + groups.howToUse.length;
+}
+
 export function buildItemFormData(values: ItemFormValues, imageGroups: ImagePreviewGroups) {
   const formData = new FormData();
 
   formData.append("name", values.name);
+  formData.append("shopify", values.shopify);
   formData.append("type", values.type);
   formData.append("category", values.category);
   formData.append("season", values.season);

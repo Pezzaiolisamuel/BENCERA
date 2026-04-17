@@ -1,11 +1,12 @@
 "use client";
 
-import { Trash2, X } from "lucide-react";
+import { Pencil, Trash2, X } from "lucide-react";
 import type { Item, ItemImageKey } from "@/types/item";
 
 interface ItemsTableProps {
   items: Item[];
   onDeleteClick: (id: string) => void;
+  onEditClick: (item: Item) => void;
 }
 
 const imageColumnOrder: ItemImageKey[] = ["above", "detailed", "background", "howToUse"];
@@ -15,7 +16,7 @@ const disabledControlStyle = {
   cursor: "not-allowed",
 };
 
-export default function ItemsTable({ items, onDeleteClick }: ItemsTableProps) {
+export default function ItemsTable({ items, onDeleteClick, onEditClick }: ItemsTableProps) {
   return (
     <div
       style={{
@@ -34,6 +35,7 @@ export default function ItemsTable({ items, onDeleteClick }: ItemsTableProps) {
           <tr>
             <th></th>
             <th>Name</th>
+            <th>Shopify</th>
             <th>Type</th>
             <th>Category</th>
             <th>Available Colors</th>
@@ -57,17 +59,30 @@ export default function ItemsTable({ items, onDeleteClick }: ItemsTableProps) {
           {items.map((item) => (
             <tr key={item.id} style={{ borderBottom: "1px solid #ccc", verticalAlign: "top" }}>
               <td>
-                <button
-                  type="button"
-                  onClick={() => onDeleteClick(item.id)}
-                  style={{ background: "transparent", border: "none", cursor: "pointer" }}
-                  aria-label={`Delete ${item.name}`}
-                >
-                  <Trash2 size={16} />
-                </button>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => onEditClick(item)}
+                    style={{ background: "transparent", border: "none", cursor: "pointer" }}
+                    aria-label={`Edit ${item.name}`}
+                    title="Edit item"
+                  >
+                    <Pencil size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDeleteClick(item.id)}
+                    style={{ background: "transparent", border: "none", cursor: "pointer" }}
+                    aria-label={`Delete ${item.name}`}
+                    title="Delete item"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               </td>
 
               <td>{item.name}</td>
+              <td>{item.shopify}</td>
               <td>{item.type}</td>
               <td>{item.category}</td>
               <td>{item.availableColors.join(", ")}</td>

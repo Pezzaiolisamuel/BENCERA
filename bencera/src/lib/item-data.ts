@@ -27,9 +27,14 @@ export function safeParseStringArray(value: string | null | undefined): string[]
   }
 }
 
-export function parseStoredItem(record: StoredItem): Item {
+type StoredItemLike = Omit<StoredItem, "shopify"> & {
+  shopify?: string | null;
+};
+
+export function parseStoredItem(record: StoredItemLike): Item {
   return {
     ...record,
+    shopify: record.shopify?.trim() || "shopify.com",
     availableColors: safeParseStringArray(record.availableColors),
     matchingPalette: safeParseStringArray(record.matchingPalette),
     sizes: safeParseStringArray(record.sizes),
@@ -42,7 +47,7 @@ export function parseStoredItem(record: StoredItem): Item {
   };
 }
 
-export function parseStoredItems(records: StoredItem[]): Item[] {
+export function parseStoredItems(records: StoredItemLike[]): Item[] {
   return records.map(parseStoredItem);
 }
 

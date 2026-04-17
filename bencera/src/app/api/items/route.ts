@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../lib/prism";
-import { ItemSchema } from "@/validators/item";
+import { ItemSchema, ItemUpdateSchema } from "@/validators/item";
 import { uploadFileToCloudinary } from "@/lib/cloudinary";
 import { deleteFromCloudinaryByUrl } from "@/lib/cloudinary-delete";
 import { isAdminAuthenticated } from "@/lib/admin-session";
@@ -9,6 +9,13 @@ import { getStoredItemImageUrls } from "@/lib/item-data";
 async function filesToCloudinaryUrls(files: File[], folder: string) {
   if (!files.length) return [];
   return Promise.all(files.map((file) => uploadFileToCloudinary(file, folder)));
+}
+
+function splitCommaSeparatedValue(value: unknown) {
+  return String(value ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
 }
 
 function requireAdminSession(req: Request) {
@@ -42,6 +49,7 @@ export async function POST(req: Request) {
     const formData = await req.formData();
 
     const name = formData.get("name")?.toString() || "";
+    const shopify = formData.get("shopify")?.toString() || "shopify.com";
     const type = formData.get("type")?.toString() || "";
     const category = formData.get("category")?.toString() || "";
     const shortDescription = formData.get("shortDescription")?.toString() || "";
@@ -92,6 +100,7 @@ export async function POST(req: Request) {
 
     const data = ItemSchema.parse({
       name,
+      shopify,
       type,
       category,
       availableColors,
@@ -114,6 +123,7 @@ export async function POST(req: Request) {
     const item = await prisma.item.create({
       data: {
         name: data.name,
+        shopify: data.shopify,
         type: data.type,
         category: data.category,
         availableColors: JSON.stringify(data.availableColors),
@@ -131,7 +141,7 @@ export async function POST(req: Request) {
         unique: data.unique,
         handmade: data.handmade,
         material: data.material,
-      },
+      } as never,
     });
 
     return NextResponse.json(item, { status: 201 });
@@ -196,6 +206,95 @@ export async function DELETE(req: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to delete item";
     console.error("DELETE /api/items error:", error);
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
+}
+
+export async function PATCH(req: Request) {
+  if (!requireAdminSession(req)) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+  }
+
+  try {
+    const formData = await req.formData();
+    const id = String(formData.get("id") || "");
+
+    if (!id) {
+      return NextResponse.json({ error: "Missing item id" }, { status: 400 });
+    }
+
+    const existingItem = await prisma.item.findUnique({ where: { id } });
+    if (!existingItem) {
+      return NextResponse.json({ error: "Item not found" }, { status: 404 });
+    }
+
+    const existingImagesAbove = JSON.parse(existingItem.imagesAbove || "[]");
+    const existingImagesDetailed = JSON.parse(existingItem.imagesDetailed || "[]");
+    const existingImagesBackground = JSON.parse(existingItem.imagesBackground || "[]");
+    const existingImagesHowToUse = JSON.parse(existingItem.imagesHowToUse || "[]");
+    const newDetailedImageFiles = formData.getAll("imagesDetailed") as File[];
+    const newDetailedImageUrls = await filesToCloudinaryUrls(
+      newDetailedImageFiles,
+      "bencera/items/detailed"
+    );
+    const nextDetailedImages = [...existingImagesDetailed, ...newDetailedImageUrls];
+
+    if (nextDetailedImages.length > 5) {
+      return NextResponse.json(
+        { error: "A piece can have a maximum of 5 detailed images." },
+        { status: 400 }
+      );
+    }
+
+    const data = ItemUpdateSchema.parse({
+      id,
+      name: String(formData.get("name") || ""),
+      shopify: String(formData.get("shopify") || "shopify.com"),
+      type: String(formData.get("type") || ""),
+      category: String(formData.get("category") || ""),
+      availableColors: splitCommaSeparatedValue(formData.get("availableColors")),
+      matchingPalette: splitCommaSeparatedValue(formData.get("matchingPalette")),
+      imagesAbove: existingImagesAbove,
+      imagesDetailed: nextDetailedImages,
+      imagesBackground: existingImagesBackground,
+      imagesHowToUse: existingImagesHowToUse,
+      shortDescription: String(formData.get("shortDescription") || ""),
+      longDescription: String(formData.get("longDescription") || ""),
+      collectionName: String(formData.get("collectionName") || ""),
+      season: String(formData.get("season") || ""),
+      sizes: splitCommaSeparatedValue(formData.get("sizes")),
+      productsInCollection: Number(formData.get("productsInCollection") || 0),
+      unique: String(formData.get("unique") || "") === "true",
+      handmade: String(formData.get("handmade") || "") === "true",
+      material: String(formData.get("material") || ""),
+    });
+
+    const updatedItem = await prisma.item.update({
+      where: { id: data.id },
+      data: {
+        name: data.name,
+        shopify: data.shopify,
+        type: data.type,
+        category: data.category,
+        availableColors: JSON.stringify(data.availableColors),
+        matchingPalette: JSON.stringify(data.matchingPalette),
+        imagesDetailed: JSON.stringify(data.imagesDetailed),
+        shortDescription: data.shortDescription,
+        longDescription: data.longDescription,
+        collectionName: data.collectionName,
+        season: data.season,
+        sizes: JSON.stringify(data.sizes),
+        productsInCollection: data.productsInCollection,
+        unique: data.unique,
+        handmade: data.handmade,
+        material: data.material,
+      } as never,
+    });
+
+    return NextResponse.json(updatedItem);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to update item";
+    console.error("PATCH /api/items error:", error);
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }

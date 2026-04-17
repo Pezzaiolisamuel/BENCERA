@@ -12,6 +12,7 @@ model Item {
   id                   String   @id @default(uuid())
   updatedAt            DateTime @updatedAt
   name                 String
+  shopify              String   @default("shopify.com")
   type                 String
   category             String
   availableColors      String

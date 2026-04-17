@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const ItemSchema = z.object({
   name: z.string().min(1),
+  shopify: z.string().min(1),
   type: z.string().min(1),
   category: z.string().min(1),
 
@@ -25,4 +26,8 @@ export const ItemSchema = z.object({
   unique: z.boolean(),
   handmade: z.boolean(),
   material: z.string().min(1),
+});
+
+export const ItemUpdateSchema = ItemSchema.extend({
+  id: z.string().min(1),
 });

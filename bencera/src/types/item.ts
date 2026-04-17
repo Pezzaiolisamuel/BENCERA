@@ -11,6 +11,7 @@ export type Item = {
   id: string;
   updatedAt: string | Date;
   name: string;
+  shopify: string;
   type: string;
   category: string;
   availableColors: string[];
@@ -33,6 +34,7 @@ export type StoredItem = Omit<
 > & {
   availableColors: string | null;
   matchingPalette: string | null;
+  shopify: string | null;
   imagesAbove: string | null;
   imagesDetailed: string | null;
   imagesBackground: string | null;
