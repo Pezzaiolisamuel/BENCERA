@@ -1,4 +1,4 @@
-import GalleryViewport from "@/components/GalleryViewport";
+import ResponsiveHomeViewport from "@/components/ResponsiveHomeViewport";
 import { fetchStoredCatalogItems } from "@/lib/catalog-items";
 import { parseStoredItems } from "@/lib/item-data";
 import type { Item } from "@/types/item";
@@ -16,5 +16,5 @@ export default async function HomePage() {
     console.error("HomePage catalog fetch failed:", error);
   }
 
-  return <GalleryViewport items={parsedItems} />;
+  return <ResponsiveHomeViewport items={parsedItems} />;
 }
