@@ -121,7 +121,7 @@
   right: 0;
   bottom: 0;
   z-index: 91;
-  height: min(82vh, 820px);
+  height: min(78vh, 760px);
   border-radius: 30px 30px 0 0;
   background:
     radial-gradient(circle at top, rgba(214, 164, 98, 0.18), transparent 28%),
@@ -147,7 +147,7 @@
 
 .sheetHeader {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 14px;
@@ -155,11 +155,12 @@
 
 .sheetTitle {
   margin: 0;
-  max-width: 9ch;
+  max-width: calc(100% - 56px);
   font-size: clamp(1.95rem, 6.3vw, 3.35rem);
   font-weight: 400;
   line-height: 0.94;
   letter-spacing: -0.075em;
+  white-space: nowrap;
   overflow: hidden;
 }
 
@@ -172,17 +173,19 @@
 
 .purchaseButton {
   flex: 0 0 auto;
-  background: transparent;
+  background: linear-gradient(180deg, #d8b056 0%, #ba8932 100%);
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
-  opacity: 0.86;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  box-shadow: 0 10px 22px rgba(73, 48, 13, 0.18);
+  opacity: 1;
 }
 
 .purchaseIcon {
-  width: 32px;
-  height: 32px;
+  width: 29px;
+  height: 29px;
   object-fit: contain;
   display: block;
 }
@@ -214,6 +217,7 @@
   scroll-behavior: smooth;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
 }
 
 .detailTrack::-webkit-scrollbar {
@@ -363,7 +367,7 @@
     transform: translateX(-50%) translateY(104%);
     border-radius: 30px;
     bottom: 16px;
-    height: min(78vh, 820px);
+    height: min(74vh, 760px);
   }
 
   .rotatingPreviewFrame {

@@ -37,8 +37,10 @@ export default function MobileHomeViewport({ items }: MobileHomeViewportProps) {
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const detailTrackRef = useRef<HTMLDivElement | null>(null);
+  const dragStartXRef = useRef<number | null>(null);
   const dragStartYRef = useRef<number | null>(null);
   const dragPointerIdRef = useRef<number | null>(null);
+  const dragModeRef = useRef<"pending" | "vertical" | "horizontal" | null>(null);
   const suppressBackdropClickRef = useRef(false);
 
   useEffect(() => {
@@ -167,21 +169,39 @@ export default function MobileHomeViewport({ items }: MobileHomeViewportProps) {
   };
 
   const handleSheetPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    dragStartXRef.current = event.clientX;
     dragStartYRef.current = event.clientY;
     dragPointerIdRef.current = event.pointerId;
+    dragModeRef.current = "pending";
     suppressBackdropClickRef.current = false;
-    setIsSheetDragging(true);
-    event.preventDefault();
+    setIsSheetDragging(false);
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
   const handleSheetPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (dragStartYRef.current === null || dragPointerIdRef.current !== event.pointerId) return;
 
-    const nextOffset = Math.max(0, event.clientY - dragStartYRef.current);
+    const deltaX = event.clientX - (dragStartXRef.current ?? event.clientX);
+    const deltaY = event.clientY - dragStartYRef.current;
+
+    if (dragModeRef.current === "pending") {
+      if (Math.abs(deltaX) < 8 && Math.abs(deltaY) < 8) {
+        return;
+      }
+
+      dragModeRef.current =
+        Math.abs(deltaY) > Math.abs(deltaX) && deltaY > 0 ? "vertical" : "horizontal";
+    }
+
+    if (dragModeRef.current !== "vertical") {
+      return;
+    }
+
+    const nextOffset = Math.max(0, deltaY);
     if (nextOffset > 6) {
       suppressBackdropClickRef.current = true;
     }
+    setIsSheetDragging(true);
     event.preventDefault();
     setSheetDragOffset(nextOffset);
   };
@@ -189,13 +209,18 @@ export default function MobileHomeViewport({ items }: MobileHomeViewportProps) {
   const handleSheetPointerEnd = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (dragStartYRef.current === null || dragPointerIdRef.current !== event.pointerId) return;
 
+    const wasVerticalDrag = dragModeRef.current === "vertical";
     const shouldClose = sheetDragOffset > 140;
+    dragStartXRef.current = null;
     dragStartYRef.current = null;
     dragPointerIdRef.current = null;
-    event.preventDefault();
+    dragModeRef.current = null;
+    if (wasVerticalDrag) {
+      event.preventDefault();
+    }
     event.currentTarget.releasePointerCapture(event.pointerId);
 
-    if (shouldClose) {
+    if (wasVerticalDrag && shouldClose) {
       closeSheet(true);
       return;
     }
@@ -262,6 +287,10 @@ export default function MobileHomeViewport({ items }: MobileHomeViewportProps) {
           <aside
             className={styles.sheet}
             onClick={(event) => event.stopPropagation()}
+            onPointerDown={handleSheetPointerDown}
+            onPointerMove={handleSheetPointerMove}
+            onPointerUp={handleSheetPointerEnd}
+            onPointerCancel={handleSheetPointerEnd}
             style={{
               transform: `translateY(${sheetDragOffset}px)`,
               transition: isSheetDragging
@@ -271,13 +300,7 @@ export default function MobileHomeViewport({ items }: MobileHomeViewportProps) {
                   : "transform 320ms cubic-bezier(0.2, 0.8, 0.2, 1)",
             }}
           >
-            <div
-              className={styles.sheetDragArea}
-              onPointerDown={handleSheetPointerDown}
-              onPointerMove={handleSheetPointerMove}
-              onPointerUp={handleSheetPointerEnd}
-              onPointerCancel={handleSheetPointerEnd}
-            >
+            <div className={styles.sheetDragArea}>
               <div className={styles.sheetHandle} />
 
               <div className={styles.sheetHeader}>
