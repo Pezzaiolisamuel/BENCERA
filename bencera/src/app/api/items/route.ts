@@ -4,6 +4,7 @@ import { ItemSchema, ItemUpdateSchema } from "@/validators/item";
 import { uploadFileToCloudinary } from "@/lib/cloudinary";
 import { deleteFromCloudinaryByUrl } from "@/lib/cloudinary-delete";
 import { isAdminAuthenticated } from "@/lib/admin-session";
+import { fetchStoredCatalogItems } from "@/lib/catalog-items";
 import { getStoredItemImageUrls } from "@/lib/item-data";
 
 async function filesToCloudinaryUrls(files: File[], folder: string) {
@@ -28,9 +29,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const items = await prisma.item.findMany({
-      orderBy: { updatedAt: "desc" },
-    });
+    const items = await fetchStoredCatalogItems({ orderByUpdatedAtDesc: true });
 
     return NextResponse.json(items);
   } catch (error) {
