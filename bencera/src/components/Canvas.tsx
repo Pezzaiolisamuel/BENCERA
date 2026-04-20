@@ -168,8 +168,8 @@ const Canvas = React.forwardRef<HTMLDivElement, CanvasProps>(({ items, onItemCli
 
     const rowCount = Math.ceil(totalItems / itemsPerRow);
 
-    const MIN_SIZE = 250;
-    const MAX_SIZE = 350;
+    const MIN_SIZE = 180;
+    const MAX_SIZE = 420;
 
     const sizes: number[] = new Array(totalItems).fill(0).map(() => {
       return MIN_SIZE + Math.floor(Math.random() * (MAX_SIZE - MIN_SIZE));
@@ -478,13 +478,11 @@ const Canvas = React.forwardRef<HTMLDivElement, CanvasProps>(({ items, onItemCli
     };
   }, [ready, ref]);
 
-  // 4.5) scroll
+  // 4.5) mouse wheel zoom
   useEffect(() => {
     if (!ready) return;
 
-    const SCROLL_SPEED = 0.3;
-    const SMOOTH_DURATION = 1.15;
-    const MAX_SCROLL_DELTA = 42;
+    const SMOOTH_DURATION = 1.55;
 
     const normalizeWheelDelta = (delta: number, deltaMode: number) => {
       if (deltaMode === 1) return delta * 16;
@@ -496,26 +494,32 @@ const Canvas = React.forwardRef<HTMLDivElement, CanvasProps>(({ items, onItemCli
       e.preventDefault();
       userInteracted.current = true;
 
-      gsap.killTweensOf(focus.current);
-
-      const normalizedDeltaX = normalizeWheelDelta(e.deltaX, e.deltaMode);
       const normalizedDeltaY = normalizeWheelDelta(e.deltaY, e.deltaMode);
-      const dx = e.shiftKey ? -normalizedDeltaY : -normalizedDeltaX;
-      const dy = -normalizedDeltaY;
+      const levels = getZoomLevels();
+      const currentIndex = getNearestZoomStepIndex(focus.current.scale);
+      const nextIndex =
+        normalizedDeltaY > 0
+          ? Math.max(currentIndex - 1, 0)
+          : Math.min(currentIndex + 1, levels.length - 1);
+      const nextScale = levels[nextIndex];
 
-      const nextXDelta =
-        Math.sign(dx) * Math.min(Math.abs(dx) * SCROLL_SPEED, MAX_SCROLL_DELTA);
-      const nextYDelta =
-        Math.sign(dy) * Math.min(Math.abs(dy) * SCROLL_SPEED, MAX_SCROLL_DELTA);
+      if (Math.abs(nextScale - focus.current.scale) < 0.0001) return;
 
-      focusTarget.current.x += nextXDelta;
-      focusTarget.current.y += nextYDelta;
+      const cursorX = e.clientX;
+      const cursorY = e.clientY;
+      const worldX = (cursorX - focus.current.x) / focus.current.scale;
+      const worldY = (cursorY - focus.current.y) / focus.current.scale;
+
+      focusTarget.current.scale = nextScale;
+      focusTarget.current.x = cursorX - worldX * nextScale;
+      focusTarget.current.y = cursorY - worldY * nextScale;
 
       gsap.to(focus.current, {
+        scale: focusTarget.current.scale,
         x: focusTarget.current.x,
         y: focusTarget.current.y,
         duration: SMOOTH_DURATION,
-        ease: "power4.out",
+        ease: "expo.out",
         onUpdate: applyFocusRef.current!,
         overwrite: true,
       });

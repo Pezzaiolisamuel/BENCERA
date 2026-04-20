@@ -1,6 +1,6 @@
 "use client";
 
-import { MoveHorizontal } from "lucide-react";
+import { Images, MoveHorizontal } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent, UIEvent } from "react";
 import type { Item } from "@/types/item";
@@ -30,6 +30,8 @@ function getAnimatedTitleLetters(name: string) {
   }));
 }
 
+const mapZoomLevels = [0.78, 1, 1.24] as const;
+
 export default function MobileHomeViewport({ items, variant = "feed" }: MobileHomeViewportProps) {
   const isMapVariant = variant === "map";
   const styles = isMapVariant ? mapStyles : feedStyles;
@@ -38,6 +40,7 @@ export default function MobileHomeViewport({ items, variant = "feed" }: MobileHo
   const [sheetDragOffset, setSheetDragOffset] = useState(0);
   const [isSheetDragging, setIsSheetDragging] = useState(false);
   const [isSheetClosing, setIsSheetClosing] = useState(false);
+  const [mapZoomIndex, setMapZoomIndex] = useState(1);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const detailTrackRef = useRef<HTMLDivElement | null>(null);
@@ -276,13 +279,28 @@ export default function MobileHomeViewport({ items, variant = "feed" }: MobileHo
     setSheetDragOffset(0);
   };
 
+  const zoomMapIn = () => {
+    setMapZoomIndex((currentIndex) => Math.min(currentIndex + 1, mapZoomLevels.length - 1));
+  };
+
+  const zoomMapOut = () => {
+    setMapZoomIndex((currentIndex) => Math.max(currentIndex - 1, 0));
+  };
+
   return (
     <div className={styles.page} ref={scrollRef}>
       <div className={styles.mobileLogo} aria-hidden="true">
         BENCERA
       </div>
 
-      <main className={isMapVariant ? mapStyles.map : feedStyles.grid}>
+      <main
+        className={isMapVariant ? mapStyles.map : feedStyles.grid}
+        style={
+          isMapVariant
+            ? ({ "--map-zoom": mapZoomLevels[mapZoomIndex] } as CSSProperties)
+            : undefined
+        }
+      >
         {visibleTiles.map((tile) => {
           const { key, item } = tile;
           const heroImage = getHeroImage(item);
@@ -324,6 +342,29 @@ export default function MobileHomeViewport({ items, variant = "feed" }: MobileHo
           );
         })}
       </main>
+
+      {isMapVariant ? (
+        <div className={mapStyles.zoomControls} aria-label="Map zoom controls">
+          <button
+            type="button"
+            className={mapStyles.zoomButton}
+            onClick={zoomMapOut}
+            disabled={mapZoomIndex === 0}
+            aria-label="Zoom out"
+          >
+            -
+          </button>
+          <button
+            type="button"
+            className={mapStyles.zoomButton}
+            onClick={zoomMapIn}
+            disabled={mapZoomIndex === mapZoomLevels.length - 1}
+            aria-label="Zoom in"
+          >
+            +
+          </button>
+        </div>
+      ) : null}
 
       {activeItem ? (
         <>
@@ -372,19 +413,6 @@ export default function MobileHomeViewport({ items, variant = "feed" }: MobileHo
                     </span>
                   ))}
                 </h2>
-                <a
-                  href={activeItem.shopify}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={styles.purchaseButton}
-                  aria-label={`Purchase ${activeItem.name}`}
-                >
-                  <img
-                    src="https://cdn-icons-png.flaticon.com/512/2430/2430422.png"
-                    alt=""
-                    className={styles.purchaseIcon}
-                  />
-                </a>
               </div>
             </div>
 
@@ -418,6 +446,16 @@ export default function MobileHomeViewport({ items, variant = "feed" }: MobileHo
                   />
                 </div>
               ) : null}
+
+              <a
+                href={activeItem.shopify}
+                target="_blank"
+                rel="noreferrer"
+                className={styles.purchaseButton}
+                aria-label={`View more pictures of ${activeItem.name}`}
+              >
+                <Images className={styles.purchaseIcon} aria-hidden="true" strokeWidth={1.8} />
+              </a>
 
               {selectedDetailedImages.length > 1 ? (
                 <div className={styles.swipeHint} aria-hidden="true">

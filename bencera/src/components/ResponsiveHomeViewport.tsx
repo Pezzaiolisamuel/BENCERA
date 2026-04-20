@@ -33,5 +33,5 @@ export default function ResponsiveHomeViewport({ items }: ResponsiveHomeViewport
     return null;
   }
 
-  return isMobile ? <MobileHomeViewport items={items} /> : <GalleryViewport items={items} />;
+  return isMobile ? <MobileHomeViewport items={items} variant="map" /> : <GalleryViewport items={items} />;
 }

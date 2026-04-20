@@ -32,6 +32,8 @@
 }
 
 .map {
+  --map-zoom: 1;
+
   width: max-content;
   min-width: 2680px;
   min-height: 4200px;
@@ -43,6 +45,46 @@
   row-gap: 22px;
   align-items: start;
   justify-items: center;
+  transform: scale(var(--map-zoom));
+  transform-origin: center center;
+  transition: transform 520ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.zoomControls {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  z-index: 80;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px;
+  border-radius: 999px;
+  background: rgba(255, 250, 243, 0.82);
+  border: 1px solid rgba(29, 20, 13, 0.12);
+  box-shadow: 0 14px 34px rgba(43, 27, 15, 0.14);
+  backdrop-filter: blur(10px);
+}
+
+.zoomButton {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: rgba(29, 20, 13, 0.92);
+  color: #fffaf3;
+  font-size: 1.5rem;
+  line-height: 1;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.zoomButton:disabled {
+  opacity: 0.38;
+  cursor: default;
 }
 
 .itemTile {
@@ -92,10 +134,6 @@
   transform-origin: 54% 54%;
 }
 
-.itemVisible .itemImage {
-  animation: feedImageSpin 31s linear infinite;
-}
-
 .tileVariant0 .itemMedia {
   aspect-ratio: 1 / 1.12;
 }
@@ -114,11 +152,6 @@
 
 .tileVariant4 .itemMedia {
   aspect-ratio: 1.14 / 1;
-}
-
-.tileVariant1 .itemImage,
-.tileVariant4 .itemImage {
-  animation-direction: reverse;
 }
 
 .sheetImage {
@@ -191,7 +224,7 @@
 
 .sheetTitle {
   margin: 0;
-  max-width: calc(100% - 56px);
+  max-width: 100%;
   font-size: clamp(1.95rem, 6.3vw, 3.35rem);
   font-weight: 400;
   line-height: 0.94;
@@ -208,28 +241,33 @@
 }
 
 .purchaseButton {
-  flex: 0 0 auto;
+  position: absolute;
+  left: 50%;
+  bottom: 7%;
+  transform: translateX(-50%);
+  z-index: 12;
   background: linear-gradient(180deg, #d8b056 0%, #ba8932 100%);
   display: grid;
   place-items: center;
-  width: 42px;
-  height: 42px;
+  width: min(15vw, 79px);
+  height: min(15vw, 79px);
   border-radius: 999px;
   box-shadow: 0 10px 22px rgba(73, 48, 13, 0.18);
   opacity: 1;
+  color: rgba(29, 20, 13, 0.84);
+  animation: purchaseButtonGlow 2s ease 1s both;
 }
 
 .purchaseIcon {
-  width: 29px;
-  height: 29px;
-  object-fit: contain;
+  width: min(5.4vw, 22px);
+  height: min(5.4vw, 22px);
   display: block;
 }
 
 .sheetStage {
   position: relative;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .sheetBackdropGlow {
@@ -282,12 +320,14 @@
 
 .rotatingPreviewFrame {
   position: absolute;
-  right: -1%;
-  bottom: 7%;
-  width: min(50vw, 264px);
-  height: min(50vw, 264px);
-  z-index: 3;
+  left: 50%;
+  top: -50px;
+  width: min(62.7vw, 333px);
+  height: min(62.7vw, 333px);
+  transform: translate(-50%, -34%);
+  z-index: 120;
   pointer-events: none;
+  isolation: isolate;
 }
 
 .rotatingPreviewImage {
@@ -295,6 +335,8 @@
   height: 100%;
   object-fit: cover;
   display: block;
+  position: relative;
+  z-index: 121;
   filter: drop-shadow(0 18px 34px rgba(29, 20, 13, 0.2));
   transform-origin: 58% 56%;
   animation: mobileSpinFloat 18s ease-in-out infinite alternate;
@@ -330,11 +372,11 @@
 
 @keyframes mobileSpinFloat {
   from {
-    transform: translate(4%, 3%) scale(1.04) rotate(-16deg);
+    transform: scale(1.04) rotate(-16deg);
   }
 
   to {
-    transform: translate(4%, 3%) scale(1.04) rotate(16deg);
+    transform: scale(1.04) rotate(16deg);
   }
 }
 
@@ -379,6 +421,23 @@
   }
 }
 
+@keyframes purchaseButtonGlow {
+  0%,
+  100% {
+    box-shadow: 0 10px 22px rgba(73, 48, 13, 0.18);
+    filter: brightness(1);
+  }
+
+  35%,
+  70% {
+    box-shadow:
+      0 0 0 9px rgba(216, 176, 86, 0.18),
+      0 0 34px rgba(216, 176, 86, 0.58),
+      0 10px 22px rgba(73, 48, 13, 0.18);
+    filter: brightness(1.12);
+  }
+}
+
 @media (min-width: 700px) {
   .page {
     padding-left: 24px;
@@ -412,7 +471,11 @@
   }
 
   .rotatingPreviewFrame {
-    right: 8%;
+    top: -50px;
+  }
+
+  .purchaseButton {
+    left: 50%;
     bottom: 10%;
   }
 }

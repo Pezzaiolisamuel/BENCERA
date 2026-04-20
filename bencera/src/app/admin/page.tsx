@@ -92,6 +92,12 @@ function getTotalImageUploadError(files: File[]) {
   return `Image upload is too large. The selected images are ${formatFileSize(totalSize)} total, but one upload request can be at most ${formatFileSize(maxTotalImageUploadBytes)}.`;
 }
 
+function getImageRequirementError(groups: ImagePreviewGroups) {
+  if (!groups.above.length) return "Please add at least one Above image.";
+  if (!groups.detailed.length) return "Please add at least one Detailed image.";
+  return null;
+}
+
 export default function AdminPage() {
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
   const [isLoginVisible, setIsLoginVisible] = useState(true);
@@ -109,6 +115,9 @@ export default function AdminPage() {
   );
   const [selectedEditItem, setSelectedEditItem] = useState<Item | null>(null);
   const [editFormValues, setEditFormValues] = useState<ItemFormValues>(initialItemFormValues);
+  const [editExistingAboveImages, setEditExistingAboveImages] = useState<string[]>([]);
+  const [editExistingDetailedImages, setEditExistingDetailedImages] = useState<string[]>([]);
+  const [editAboveImagePreviews, setEditAboveImagePreviews] = useState<ImagePreview[]>([]);
   const [editDetailedImagePreviews, setEditDetailedImagePreviews] = useState<ImagePreview[]>([]);
   const [editFormError, setEditFormError] = useState<string | null>(null);
   const [isUpdatingItem, setIsUpdatingItem] = useState(false);
@@ -290,14 +299,21 @@ export default function AdminPage() {
   const openEditModal = (item: Item) => {
     setSelectedEditItem(item);
     setEditFormValues(createItemFormValuesFromItem(item));
+    setEditExistingAboveImages(item.images.above);
+    setEditExistingDetailedImages(item.images.detailed);
+    setEditAboveImagePreviews([]);
     setEditDetailedImagePreviews([]);
     setEditFormError(null);
   };
 
   const closeEditModal = () => {
+    revokePreviewUrls(editAboveImagePreviews);
     revokePreviewUrls(editDetailedImagePreviews);
     setSelectedEditItem(null);
     setEditFormValues(initialItemFormValues);
+    setEditExistingAboveImages([]);
+    setEditExistingDetailedImages([]);
+    setEditAboveImagePreviews([]);
     setEditDetailedImagePreviews([]);
     setEditFormError(null);
     setIsUpdatingItem(false);
@@ -388,7 +404,10 @@ export default function AdminPage() {
     setShowSuccess(false);
   };
 
-  const handleEditDetailedImagesChange = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleEditImagesChange = (
+    event: ChangeEvent<HTMLInputElement>,
+    imageKey: "above" | "detailed"
+  ) => {
     if (!selectedEditItem) return;
 
     const files = event.target.files;
@@ -402,9 +421,14 @@ export default function AdminPage() {
       return;
     }
 
-    const remainingSlots = maxImagesPerItem - (selectedEditItem.images.detailed.length + editDetailedImagePreviews.length);
+    const existingCount =
+      imageKey === "above" ? editExistingAboveImages.length : editExistingDetailedImages.length;
+    const previewCount =
+      imageKey === "above" ? editAboveImagePreviews.length : editDetailedImagePreviews.length;
+    const remainingSlots = maxImagesPerItem - (existingCount + previewCount);
     const acceptedFiles = selectedFiles.slice(0, Math.max(remainingSlots, 0));
     const totalImageUploadError = getTotalImageUploadError([
+      ...editAboveImagePreviews.map((preview) => preview.file),
       ...editDetailedImagePreviews.map((preview) => preview.file),
       ...acceptedFiles,
     ]);
@@ -427,17 +451,44 @@ export default function AdminPage() {
       }));
 
     if (nextPreviews.length < files.length) {
-      setEditFormError(`Only ${maxImagesPerItem} detailed images are allowed per piece.`);
+      setEditFormError(`Only ${maxImagesPerItem} ${imageKey} images are allowed per piece.`);
     } else {
       setEditFormError(null);
     }
 
-    setEditDetailedImagePreviews((currentPreviews) => [...currentPreviews, ...nextPreviews]);
+    if (imageKey === "above") {
+      setEditAboveImagePreviews((currentPreviews) => [...currentPreviews, ...nextPreviews]);
+    } else {
+      setEditDetailedImagePreviews((currentPreviews) => [...currentPreviews, ...nextPreviews]);
+    }
     event.target.value = "";
+  };
+
+  const removeEditExistingAboveImage = (index: number) => {
+    setEditExistingAboveImages((currentImages) =>
+      currentImages.filter((_, imageIndex) => imageIndex !== index)
+    );
+  };
+
+  const removeEditExistingDetailedImage = (index: number) => {
+    setEditExistingDetailedImages((currentImages) =>
+      currentImages.filter((_, imageIndex) => imageIndex !== index)
+    );
   };
 
   const removeEditDetailedPreview = (index: number) => {
     setEditDetailedImagePreviews((currentPreviews) => {
+      const nextPreviews = [...currentPreviews];
+      const [removedPreview] = nextPreviews.splice(index, 1);
+      if (removedPreview) {
+        URL.revokeObjectURL(removedPreview.url);
+      }
+      return nextPreviews;
+    });
+  };
+
+  const removeEditAbovePreview = (index: number) => {
+    setEditAboveImagePreviews((currentPreviews) => {
       const nextPreviews = [...currentPreviews];
       const [removedPreview] = nextPreviews.splice(index, 1);
       if (removedPreview) {
@@ -457,6 +508,11 @@ export default function AdminPage() {
       const validationError = validateItemForm(itemFormValues);
       if (validationError) {
         throw new Error(validationError);
+      }
+
+      const imageRequirementError = getImageRequirementError(imagePreviewGroups);
+      if (imageRequirementError) {
+        throw new Error(imageRequirementError);
       }
 
       const response = await fetch("/api/items", {
@@ -494,6 +550,18 @@ export default function AdminPage() {
         throw new Error(validationError);
       }
 
+      const nextAboveCount = editExistingAboveImages.length + editAboveImagePreviews.length;
+      const nextDetailedCount =
+        editExistingDetailedImages.length + editDetailedImagePreviews.length;
+
+      if (!nextAboveCount) {
+        throw new Error("Please keep or add at least one Above image.");
+      }
+
+      if (!nextDetailedCount) {
+        throw new Error("Please keep or add at least one Detailed image.");
+      }
+
       const confirmed = window.confirm(
         `Are you sure you want to update "${selectedEditItem.name}" in the database?`
       );
@@ -506,6 +574,7 @@ export default function AdminPage() {
       const formData = new FormData();
       formData.append("id", selectedEditItem.id);
       formData.append("name", editFormValues.name);
+      formData.append("shopify", editFormValues.shopify);
       formData.append("type", editFormValues.type);
       formData.append("category", editFormValues.category);
       formData.append("season", editFormValues.season);
@@ -519,6 +588,12 @@ export default function AdminPage() {
       formData.append("sizes", editFormValues.sizes);
       formData.append("unique", String(editFormValues.unique));
       formData.append("handmade", String(editFormValues.handmade));
+      formData.append("existingImagesAbove", JSON.stringify(editExistingAboveImages));
+      formData.append("existingImagesDetailed", JSON.stringify(editExistingDetailedImages));
+
+      for (const preview of editAboveImagePreviews) {
+        formData.append("imagesAbove", preview.file);
+      }
 
       for (const preview of editDetailedImagePreviews) {
         formData.append("imagesDetailed", preview.file);
@@ -646,6 +721,57 @@ export default function AdminPage() {
     </div>
   );
 
+  const renderExistingImageUrls = (
+    urls: string[],
+    onRemove: (index: number) => void
+  ) => (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+      {urls.map((url, index) => (
+        <div
+          key={`${url}-${index}`}
+          style={{
+            position: "relative",
+            width: 66,
+            height: 66,
+            borderRadius: 12,
+            overflow: "hidden",
+            border: "1px solid rgba(0,0,0,0.10)",
+            background: "rgba(255,255,255,0.9)",
+          }}
+        >
+          <img
+            src={url}
+            alt=""
+            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          />
+          <button
+            type="button"
+            onClick={() => onRemove(index)}
+            style={{
+              position: "absolute",
+              top: 6,
+              right: 6,
+              background: "rgba(0,0,0,0.75)",
+              color: "white",
+              border: "none",
+              borderRadius: 999,
+              width: 22,
+              height: 22,
+              cursor: "pointer",
+              lineHeight: "22px",
+              textAlign: "center",
+              fontWeight: 800,
+            }}
+            aria-label="Remove existing image"
+            title="Remove"
+          >
+            x
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+
   const renderItemFormFields = (
     values: ItemFormValues,
     onFieldChange: (fieldName: keyof ItemFormValues, value: string | boolean) => void,
@@ -655,22 +781,22 @@ export default function AdminPage() {
       <div style={{ fontWeight: 800, fontSize: 13, opacity: 0.8 }}>Basic info</div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <Field label="Name" labelStyle={styles.label}>
+        <Field label="Name" labelStyle={styles.label} hint="Optional">
           <input
             name={`${keyPrefix}-name`}
             placeholder="Item name"
-            required
             value={values.name}
             onChange={(event) => onFieldChange("name", event.target.value)}
             style={styles.input}
           />
         </Field>
 
-        <Field label="Shopify" labelStyle={styles.label} hint="Product or collection link">
+        <Field label="Shopify" labelStyle={styles.label} hint="Required - full product link">
           <input
             name={`${keyPrefix}-shopify`}
-            placeholder="shopify.com"
+            placeholder="https://bencera.myshopify.com/products/3?variant=53256942518609"
             required
+            type="url"
             value={values.shopify}
             onChange={(event) => onFieldChange("shopify", event.target.value)}
             style={styles.input}
@@ -679,11 +805,10 @@ export default function AdminPage() {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <Field label="Type" labelStyle={styles.label}>
+        <Field label="Type" labelStyle={styles.label} hint="Optional">
           <input
             name={`${keyPrefix}-type`}
             placeholder="Type"
-            required
             value={values.type}
             onChange={(event) => onFieldChange("type", event.target.value)}
             style={styles.input}
@@ -692,22 +817,20 @@ export default function AdminPage() {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <Field label="Category" labelStyle={styles.label}>
+        <Field label="Category" labelStyle={styles.label} hint="Optional">
           <input
             name={`${keyPrefix}-category`}
             placeholder="Category"
-            required
             value={values.category}
             onChange={(event) => onFieldChange("category", event.target.value)}
             style={styles.input}
           />
         </Field>
 
-        <Field label="Season" labelStyle={styles.label}>
+        <Field label="Season" labelStyle={styles.label} hint="Optional">
           <input
             name={`${keyPrefix}-season`}
             placeholder="Season"
-            required
             value={values.season}
             onChange={(event) => onFieldChange("season", event.target.value)}
             style={styles.input}
@@ -715,11 +838,10 @@ export default function AdminPage() {
         </Field>
       </div>
 
-      <Field label="Collection name" labelStyle={styles.label}>
+      <Field label="Collection name" labelStyle={styles.label} hint="Optional">
         <input
           name={`${keyPrefix}-collectionName`}
           placeholder="Collection name"
-          required
           value={values.collectionName}
           onChange={(event) => onFieldChange("collectionName", event.target.value)}
           style={styles.input}
@@ -730,22 +852,20 @@ export default function AdminPage() {
         Description
       </div>
 
-      <Field label="Short description" labelStyle={styles.label}>
+      <Field label="Short description" labelStyle={styles.label} hint="Optional">
         <input
           name={`${keyPrefix}-shortDescription`}
           placeholder="Short description"
-          required
           value={values.shortDescription}
           onChange={(event) => onFieldChange("shortDescription", event.target.value)}
           style={styles.input}
         />
       </Field>
 
-      <Field label="Long description" labelStyle={styles.label}>
+      <Field label="Long description" labelStyle={styles.label} hint="Optional">
         <textarea
           name={`${keyPrefix}-longDescription`}
           placeholder="Long description"
-          required
           value={values.longDescription}
           onChange={(event) => onFieldChange("longDescription", event.target.value)}
           style={styles.textarea}
@@ -757,23 +877,21 @@ export default function AdminPage() {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <Field label="Material" labelStyle={styles.label}>
+        <Field label="Material" labelStyle={styles.label} hint="Optional">
           <input
             name={`${keyPrefix}-material`}
             placeholder="Material"
-            required
             value={values.material}
             onChange={(event) => onFieldChange("material", event.target.value)}
             style={styles.input}
           />
         </Field>
 
-        <Field label="Products in collection" labelStyle={styles.label}>
+        <Field label="Products in collection" labelStyle={styles.label} hint="Optional">
           <input
             name={`${keyPrefix}-productsInCollection`}
             type="number"
             placeholder="Products in collection"
-            required
             value={values.productsInCollection}
             onChange={(event) => onFieldChange("productsInCollection", event.target.value)}
             style={styles.input}
@@ -782,7 +900,7 @@ export default function AdminPage() {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <Field label="Available colors" hint="Comma separated" labelStyle={styles.label}>
+        <Field label="Available colors" hint="Optional - comma separated" labelStyle={styles.label}>
           <input
             name={`${keyPrefix}-availableColors`}
             placeholder="e.g. white, beige, black"
@@ -792,7 +910,7 @@ export default function AdminPage() {
           />
         </Field>
 
-        <Field label="Matching palette" hint="Comma separated" labelStyle={styles.label}>
+        <Field label="Matching palette" hint="Optional - comma separated" labelStyle={styles.label}>
           <input
             name={`${keyPrefix}-matchingPalette`}
             placeholder="e.g. sand, clay, ash"
@@ -803,7 +921,7 @@ export default function AdminPage() {
         </Field>
       </div>
 
-      <Field label="Sizes" hint="Comma separated" labelStyle={styles.label}>
+      <Field label="Sizes" hint="Optional - comma separated" labelStyle={styles.label}>
         <input
           name={`${keyPrefix}-sizes`}
           placeholder="e.g. 20cm, 25cm, 30cm"
@@ -1080,7 +1198,14 @@ export default function AdminPage() {
                       justifyContent: "space-between",
                     }}
                   >
-                    <div style={{ fontWeight: 850, fontSize: 13 }}>{section.label} Images</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                      <div style={{ fontWeight: 850, fontSize: 13 }}>{section.label} Images</div>
+                      <span style={{ fontSize: 11, opacity: 0.62 }}>
+                        {section.key === "above" || section.key === "detailed"
+                          ? "Required"
+                          : "Optional"}
+                      </span>
+                    </div>
                     <div style={{ fontSize: 12, opacity: 0.7 }}>
                       {imagePreviewGroups[section.key].length} selected
                     </div>
@@ -1241,48 +1366,71 @@ export default function AdminPage() {
             {renderItemFormFields(editFormValues, updateEditField, "edit")}
 
             <div style={{ fontWeight: 800, fontSize: 13, opacity: 0.8, marginTop: 4 }}>
-              Add Detailed Images
+              Required Images
             </div>
             <div style={{ fontSize: 12, opacity: 0.65 }}>
-              Existing detailed images: {selectedEditItem.images.detailed.length}. Maximum {maxImagesPerItem} total.
+              Above and Detailed images are required. You can delete existing images as long as at
+              least one image remains or a replacement is added.
             </div>
 
-            <div
-              style={{
-                border: "1px dashed rgba(0,0,0,0.18)",
-                borderRadius: 16,
-                padding: 12,
-                background: "rgba(255,255,255,0.7)",
-              }}
-            >
+            {[
+              {
+                key: "above" as const,
+                label: "Above",
+                existing: editExistingAboveImages,
+                previews: editAboveImagePreviews,
+                onRemoveExisting: removeEditExistingAboveImage,
+                onRemovePreview: removeEditAbovePreview,
+              },
+              {
+                key: "detailed" as const,
+                label: "Detailed",
+                existing: editExistingDetailedImages,
+                previews: editDetailedImagePreviews,
+                onRemoveExisting: removeEditExistingDetailedImage,
+                onRemovePreview: removeEditDetailedPreview,
+              },
+            ].map((section) => (
               <div
+                key={section.key}
                 style={{
-                  display: "flex",
-                  alignItems: "baseline",
-                  justifyContent: "space-between",
+                  border: "1px dashed rgba(0,0,0,0.18)",
+                  borderRadius: 16,
+                  padding: 12,
+                  background: "rgba(255,255,255,0.7)",
                 }}
               >
-                <div style={{ fontWeight: 850, fontSize: 13 }}>New Detailed Images</div>
-                <div style={{ fontSize: 12, opacity: 0.7 }}>
-                  {editDetailedImagePreviews.length} selected
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "baseline",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    <div style={{ fontWeight: 850, fontSize: 13 }}>{section.label} Images</div>
+                    <span style={{ fontSize: 11, opacity: 0.62 }}>Required</span>
+                  </div>
+                  <div style={{ fontSize: 12, opacity: 0.7 }}>
+                    {section.existing.length + section.previews.length} selected
+                  </div>
                 </div>
+
+                {renderExistingImageUrls(section.existing, section.onRemoveExisting)}
+
+                <div style={{ height: 10 }} />
+
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={(event) => handleEditImagesChange(event, section.key)}
+                  style={{ width: "100%" }}
+                />
+
+                {renderStandaloneImagePreviews(section.previews, section.onRemovePreview)}
               </div>
-
-              <div style={{ height: 10 }} />
-
-              <input
-                type="file"
-                multiple
-                accept="image/*"
-                onChange={handleEditDetailedImagesChange}
-                style={{ width: "100%" }}
-              />
-
-              {renderStandaloneImagePreviews(
-                editDetailedImagePreviews,
-                removeEditDetailedPreview
-              )}
-            </div>
+            ))}
 
             <div
               style={{

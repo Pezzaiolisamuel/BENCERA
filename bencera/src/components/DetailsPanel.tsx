@@ -1,5 +1,6 @@
 "use client";
 
+import { Images } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import type { Item } from "@/types/item";
@@ -9,14 +10,6 @@ type DetailsPanelProps = {
   item: Item | null;
   onClose: () => void;
 };
-
-function getAnimatedTitleLetters(name: string) {
-  return Array.from(name).map((character, index) => ({
-    key: `${character}-${index}`,
-    character: character === " " ? "\u00A0" : character,
-    delay: `${0.2 + index * 0.04}s`,
-  }));
-}
 
 export default function DetailsPanel({ item, onClose }: DetailsPanelProps) {
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -35,7 +28,6 @@ export default function DetailsPanel({ item, onClose }: DetailsPanelProps) {
 
   const detailImage = detailedImages[detailIndex] ?? detailedImages[0] ?? null;
   const aboveImage = item?.images?.above?.[0] || null;
-  const animatedTitleLetters = item ? getAnimatedTitleLetters(item.name) : [];
 
   useEffect(() => {
     if (!item) return;
@@ -196,21 +188,6 @@ export default function DetailsPanel({ item, onClose }: DetailsPanelProps) {
           x
         </button>
 
-        <div className={styles.panelHeader}>
-          <h1 key={item.id} className={styles.title} aria-label={item.name}>
-            {animatedTitleLetters.map((letter) => (
-              <span
-                key={letter.key}
-                className={styles.titleLetter}
-                style={{ animationDelay: letter.delay }}
-                aria-hidden="true"
-              >
-                {letter.character}
-              </span>
-            ))}
-          </h1>
-        </div>
-
         <div className={styles.imageViewport}>
           {detailImage ? (
             <img
@@ -227,19 +204,10 @@ export default function DetailsPanel({ item, onClose }: DetailsPanelProps) {
           target="_blank"
           rel="noreferrer"
           className={styles.purchaseButton}
-          aria-label={`Purchase ${item.name}`}
+          aria-label={`View more pictures of ${item.name}`}
         >
-          <img
-            src="https://cdn-icons-png.flaticon.com/512/2430/2430422.png"
-            alt=""
-            className={styles.purchaseIcon}
-          />
+          <Images className={styles.purchaseIcon} aria-hidden="true" strokeWidth={1.8} />
         </a>
-
-        <div className={styles.scrollCue} aria-hidden="true">
-          <span className={styles.scrollCueText}>Scroll</span>
-          <span className={styles.scrollCueIcon} />
-        </div>
       </aside>
 
       {aboveImage ? (

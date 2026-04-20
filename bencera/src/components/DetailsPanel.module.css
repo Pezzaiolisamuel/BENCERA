@@ -168,15 +168,23 @@
   display: grid;
   place-items: center;
   background: linear-gradient(180deg, #d8b056 0%, #ba8932 100%);
+  border: 0;
   border-radius: 999px;
   backdrop-filter: blur(8px);
   box-shadow: 0 12px 30px rgba(22, 15, 10, 0.08);
+  color: rgba(22, 14, 9, 0.88);
+  cursor: pointer;
+  animation: purchaseButtonGlow 2s ease 1s both;
+}
+
+.purchaseButton:disabled {
+  cursor: default;
+  opacity: 0.54;
 }
 
 .purchaseIcon {
   width: 34px;
   height: 34px;
-  object-fit: contain;
   display: block;
 }
 
@@ -234,5 +242,22 @@
   100% {
     opacity: 0;
     visibility: hidden;
+  }
+}
+
+@keyframes purchaseButtonGlow {
+  0%,
+  100% {
+    box-shadow: 0 12px 30px rgba(22, 15, 10, 0.08);
+    filter: brightness(1);
+  }
+
+  35%,
+  70% {
+    box-shadow:
+      0 0 0 9px rgba(216, 176, 86, 0.18),
+      0 0 34px rgba(216, 176, 86, 0.58),
+      0 12px 30px rgba(22, 15, 10, 0.08);
+    filter: brightness(1.12);
   }
 }

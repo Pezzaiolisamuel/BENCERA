@@ -75,7 +75,26 @@ const itemSelectWithoutShopify = {
   material: true,
 } as const;
 
-type StoredItemWithoutShopify = Omit<StoredItem, "shopify">;
+async function ensureShopifyColumn() {
+  await prisma.$executeRaw`
+    ALTER TABLE "Item"
+    ADD COLUMN IF NOT EXISTS "shopify" TEXT NOT NULL DEFAULT ''
+  `;
+}
+
+function getJsonStringArrayFormValue(formData: FormData, fieldName: string) {
+  const value = formData.get(fieldName);
+  if (typeof value !== "string") return [];
+
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed)
+      ? parsed.filter((entry): entry is string => typeof entry === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
 
 export async function GET(req: Request) {
   if (!requireAdminSession(req)) {
@@ -102,7 +121,7 @@ export async function POST(req: Request) {
     const formData = await req.formData();
 
     const name = formData.get("name")?.toString() || "";
-    const shopify = formData.get("shopify")?.toString() || "shopify.com";
+    const shopify = formData.get("shopify")?.toString() || "";
     const type = formData.get("type")?.toString() || "";
     const category = formData.get("category")?.toString() || "";
     const shortDescription = formData.get("shortDescription")?.toString() || "";
@@ -185,11 +204,14 @@ export async function POST(req: Request) {
 
     const id = randomUUID();
     const updatedAt = new Date();
-    const [item] = await prisma.$queryRaw<StoredItemWithoutShopify[]>`
+    await ensureShopifyColumn();
+
+    const [item] = await prisma.$queryRaw<StoredItem[]>`
       INSERT INTO "Item" (
         "id",
         "updatedAt",
         "name",
+        "shopify",
         "type",
         "category",
         "availableColors",
@@ -212,6 +234,7 @@ export async function POST(req: Request) {
         ${id},
         ${updatedAt},
         ${data.name},
+        ${data.shopify},
         ${data.type},
         ${data.category},
         ${JSON.stringify(data.availableColors)},
@@ -234,6 +257,7 @@ export async function POST(req: Request) {
         "id",
         "updatedAt",
         "name",
+        "shopify",
         "type",
         "category",
         "availableColors",
@@ -350,22 +374,48 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "Item not found" }, { status: 404 });
     }
 
-    const existingImagesAbove = JSON.parse(existingItem.imagesAbove || "[]");
-    const existingImagesDetailed = JSON.parse(existingItem.imagesDetailed || "[]");
     const existingImagesBackground = JSON.parse(existingItem.imagesBackground || "[]");
     const existingImagesHowToUse = JSON.parse(existingItem.imagesHowToUse || "[]");
+    const retainedImagesAbove = getJsonStringArrayFormValue(formData, "existingImagesAbove");
+    const retainedImagesDetailed = getJsonStringArrayFormValue(formData, "existingImagesDetailed");
+    const newAboveImageFiles = getImageFiles(formData, "imagesAbove");
     const newDetailedImageFiles = getImageFiles(formData, "imagesDetailed");
-    const imageUploadSizeError = validateImageUploadSize(newDetailedImageFiles);
+    const imageUploadSizeError = validateImageUploadSize([
+      ...newAboveImageFiles,
+      ...newDetailedImageFiles,
+    ]);
 
     if (imageUploadSizeError) {
       return NextResponse.json({ error: imageUploadSizeError }, { status: 413 });
     }
 
-    const newDetailedImageUrls = await filesToCloudinaryUrls(
-      newDetailedImageFiles,
-      "bencera/items/detailed"
-    );
-    const nextDetailedImages = [...existingImagesDetailed, ...newDetailedImageUrls];
+    const [newAboveImageUrls, newDetailedImageUrls] = await Promise.all([
+      filesToCloudinaryUrls(newAboveImageFiles, "bencera/items/above"),
+      filesToCloudinaryUrls(newDetailedImageFiles, "bencera/items/detailed"),
+    ]);
+    const nextAboveImages = [...retainedImagesAbove, ...newAboveImageUrls];
+    const nextDetailedImages = [...retainedImagesDetailed, ...newDetailedImageUrls];
+
+    if (!nextAboveImages.length) {
+      return NextResponse.json(
+        { error: "A piece must have at least one above image." },
+        { status: 400 }
+      );
+    }
+
+    if (!nextDetailedImages.length) {
+      return NextResponse.json(
+        { error: "A piece must have at least one detailed image." },
+        { status: 400 }
+      );
+    }
+
+    if (nextAboveImages.length > 5) {
+      return NextResponse.json(
+        { error: "A piece can have a maximum of 5 above images." },
+        { status: 400 }
+      );
+    }
 
     if (nextDetailedImages.length > 5) {
       return NextResponse.json(
@@ -377,12 +427,12 @@ export async function PATCH(req: Request) {
     const data = ItemUpdateSchema.parse({
       id,
       name: String(formData.get("name") || ""),
-      shopify: String(formData.get("shopify") || "shopify.com"),
+      shopify: String(formData.get("shopify") || ""),
       type: String(formData.get("type") || ""),
       category: String(formData.get("category") || ""),
       availableColors: splitCommaSeparatedValue(formData.get("availableColors")),
       matchingPalette: splitCommaSeparatedValue(formData.get("matchingPalette")),
-      imagesAbove: existingImagesAbove,
+      imagesAbove: nextAboveImages,
       imagesDetailed: nextDetailedImages,
       imagesBackground: existingImagesBackground,
       imagesHowToUse: existingImagesHowToUse,
@@ -397,27 +447,57 @@ export async function PATCH(req: Request) {
       material: String(formData.get("material") || ""),
     });
 
-    const updatedItem = await prisma.item.update({
-      where: { id: data.id },
-      data: {
-        name: data.name,
-        type: data.type,
-        category: data.category,
-        availableColors: JSON.stringify(data.availableColors),
-        matchingPalette: JSON.stringify(data.matchingPalette),
-        imagesDetailed: JSON.stringify(data.imagesDetailed),
-        shortDescription: data.shortDescription,
-        longDescription: data.longDescription,
-        collectionName: data.collectionName,
-        season: data.season,
-        sizes: JSON.stringify(data.sizes),
-        productsInCollection: data.productsInCollection,
-        unique: data.unique,
-        handmade: data.handmade,
-        material: data.material,
-      } as never,
-      select: itemSelectWithoutShopify,
-    });
+    await ensureShopifyColumn();
+
+    const [updatedItem] = await prisma.$queryRaw<StoredItem[]>`
+      UPDATE "Item"
+      SET
+        "name" = ${data.name},
+        "updatedAt" = ${new Date()},
+        "shopify" = ${data.shopify},
+        "type" = ${data.type},
+        "category" = ${data.category},
+        "availableColors" = ${JSON.stringify(data.availableColors)},
+        "matchingPalette" = ${JSON.stringify(data.matchingPalette)},
+        "imagesAbove" = ${JSON.stringify(data.imagesAbove)},
+        "imagesDetailed" = ${JSON.stringify(data.imagesDetailed)},
+        "shortDescription" = ${data.shortDescription},
+        "longDescription" = ${data.longDescription},
+        "collectionName" = ${data.collectionName},
+        "season" = ${data.season},
+        "sizes" = ${JSON.stringify(data.sizes)},
+        "productsInCollection" = ${data.productsInCollection},
+        "unique" = ${data.unique},
+        "handmade" = ${data.handmade},
+        "material" = ${data.material}
+      WHERE "id" = ${data.id}
+      RETURNING
+        "id",
+        "updatedAt",
+        "name",
+        "shopify",
+        "type",
+        "category",
+        "availableColors",
+        "matchingPalette",
+        "imagesAbove",
+        "imagesDetailed",
+        "imagesBackground",
+        "imagesHowToUse",
+        "shortDescription",
+        "longDescription",
+        "collectionName",
+        "season",
+        "sizes",
+        "productsInCollection",
+        "unique",
+        "handmade",
+        "material"
+    `;
+
+    if (!updatedItem) {
+      throw new Error("Failed to update item");
+    }
 
     return NextResponse.json(updatedItem);
   } catch (error) {

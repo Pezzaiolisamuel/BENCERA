@@ -35,7 +35,7 @@ export function formatFileSize(bytes: number) {
 
 export const initialItemFormValues: ItemFormValues = {
   name: "",
-  shopify: "shopify.com",
+  shopify: "",
   type: "",
   category: "",
   season: "",
@@ -68,16 +68,7 @@ export function createEmptyImagePreviewGroups(): ImagePreviewGroups {
 }
 
 export const requiredItemFormFields: Array<keyof ItemFormValues> = [
-  "name",
   "shopify",
-  "type",
-  "category",
-  "season",
-  "collectionName",
-  "shortDescription",
-  "longDescription",
-  "material",
-  "productsInCollection",
 ];
 
 export const imageUploadSections: Array<{
@@ -99,13 +90,22 @@ export function validateItemForm(values: ItemFormValues) {
     }
   }
 
+  try {
+    const url = new URL(values.shopify);
+    if (!["http:", "https:"].includes(url.protocol)) {
+      return "Please enter a valid Shopify URL.";
+    }
+  } catch {
+    return "Please enter a valid Shopify URL.";
+  }
+
   return null;
 }
 
 export function createItemFormValuesFromItem(item: Item): ItemFormValues {
   return {
     name: item.name,
-    shopify: item.shopify || "shopify.com",
+    shopify: item.shopify || "",
     type: item.type,
     category: item.category,
     season: item.season,
