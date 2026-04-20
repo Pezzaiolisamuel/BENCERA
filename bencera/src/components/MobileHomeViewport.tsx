@@ -2,7 +2,7 @@
 
 import { MoveHorizontal } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { PointerEvent as ReactPointerEvent, UIEvent } from "react";
+import type { CSSProperties, PointerEvent as ReactPointerEvent, UIEvent } from "react";
 import type { Item } from "@/types/item";
 import styles from "@/app/mobilehome/page.module.css";
 
@@ -56,14 +56,37 @@ export default function MobileHomeViewport({ items }: MobileHomeViewportProps) {
     };
   }, []);
 
-  const repeatedItems = useMemo(() => {
+  const mapTiles = useMemo(() => {
     if (!items.length) return [];
 
-    return Array.from({ length: 5 }, (_, blockIndex) =>
-      items.map((item, itemIndex) => ({
-        key: `${item.id}-${blockIndex}-${itemIndex}`,
-        item,
-      }))
+    const columnCount = 9;
+    const baseRowCount = Math.max(6, Math.min(items.length, 9));
+    const rowCount = baseRowCount * 5;
+
+    return Array.from({ length: rowCount }, (_, rowIndex) =>
+      Array.from({ length: columnCount }, (_, columnIndex) => {
+        const itemIndex =
+          (rowIndex * 2 + columnIndex * 3 + Math.floor(columnIndex / 2)) % items.length;
+        const variant = (rowIndex + columnIndex * 2) % 5;
+        const columnStagger = columnIndex % 2 === 0 ? 0 : 62;
+        const rowDrift = (rowIndex % 3) * 12;
+        const lateralDrift = ((rowIndex + columnIndex) % 3 - 1) * 16;
+
+        return {
+          key: `${items[itemIndex].id}-${rowIndex}-${columnIndex}`,
+          item: items[itemIndex],
+          columnIndex,
+          rowIndex,
+          variant,
+          style: {
+            gridColumn: columnIndex + 1,
+            gridRow: rowIndex + 1,
+            "--tile-shift-x": `${lateralDrift}px`,
+            "--tile-shift-y": `${columnStagger + rowDrift}px`,
+            "--tile-scale": variant === 0 ? 1.08 : variant === 3 ? 0.88 : 1,
+          } as CSSProperties,
+        };
+      })
     ).flat();
   }, [items]);
 
@@ -73,23 +96,32 @@ export default function MobileHomeViewport({ items }: MobileHomeViewportProps) {
 
     requestAnimationFrame(() => {
       const segmentHeight = container.scrollHeight / 5;
+      const segmentWidth = container.scrollWidth / 3;
       container.scrollTop = segmentHeight * 2;
+      container.scrollLeft = segmentWidth;
     });
 
     const handleScroll = () => {
       const segmentHeight = container.scrollHeight / 5;
-      if (!segmentHeight) return;
+      const segmentWidth = container.scrollWidth / 3;
+      if (!segmentHeight || !segmentWidth) return;
 
       if (container.scrollTop < segmentHeight * 0.75) {
         container.scrollTop += segmentHeight;
       } else if (container.scrollTop > segmentHeight * 3.25) {
         container.scrollTop -= segmentHeight;
       }
+
+      if (container.scrollLeft < segmentWidth * 0.45) {
+        container.scrollLeft += segmentWidth;
+      } else if (container.scrollLeft > segmentWidth * 1.55) {
+        container.scrollLeft -= segmentWidth;
+      }
     };
 
     container.addEventListener("scroll", handleScroll, { passive: true });
     return () => container.removeEventListener("scroll", handleScroll);
-  }, [items.length, repeatedItems.length]);
+  }, [items.length, mapTiles.length]);
 
   useEffect(() => {
     const container = scrollRef.current;
@@ -118,7 +150,7 @@ export default function MobileHomeViewport({ items }: MobileHomeViewportProps) {
 
     targets.forEach((target) => observer.observe(target));
     return () => observer.disconnect();
-  }, [repeatedItems.length]);
+  }, [mapTiles.length]);
 
   useEffect(() => {
     const track = detailTrackRef.current;
@@ -235,8 +267,8 @@ export default function MobileHomeViewport({ items }: MobileHomeViewportProps) {
         BENCERA
       </div>
 
-      <main className={styles.grid}>
-        {repeatedItems.map(({ key, item }) => {
+      <main className={styles.map}>
+        {mapTiles.map(({ key, item, style, variant }) => {
           const heroImage = getHeroImage(item);
 
           return (
@@ -254,7 +286,8 @@ export default function MobileHomeViewport({ items }: MobileHomeViewportProps) {
                   setSheetDragOffset(0);
                 });
               }}
-              className={styles.itemTile}
+              className={`${styles.itemTile} ${styles[`tileVariant${variant}`]}`}
+              style={style}
             >
               <div className={styles.itemMedia}>
                 {heroImage ? (
