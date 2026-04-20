@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 import { prisma } from "../../../lib/prism";
 import { ItemSchema, ItemUpdateSchema } from "@/validators/item";
 import { uploadFileToCloudinary } from "@/lib/cloudinary";
@@ -6,6 +7,7 @@ import { deleteFromCloudinaryByUrl } from "@/lib/cloudinary-delete";
 import { isAdminAuthenticated } from "@/lib/admin-session";
 import { fetchStoredCatalogItems } from "@/lib/catalog-items";
 import { getStoredItemImageUrls } from "@/lib/item-data";
+import type { StoredItem } from "@/types/item";
 
 async function filesToCloudinaryUrls(files: File[], folder: string) {
   if (!files.length) return [];
@@ -22,6 +24,31 @@ function splitCommaSeparatedValue(value: unknown) {
 function requireAdminSession(req: Request) {
   return isAdminAuthenticated(req, process.env.ADMIN_SESSION_SECRET || "");
 }
+
+const itemSelectWithoutShopify = {
+  id: true,
+  updatedAt: true,
+  name: true,
+  type: true,
+  category: true,
+  availableColors: true,
+  matchingPalette: true,
+  imagesAbove: true,
+  imagesDetailed: true,
+  imagesBackground: true,
+  imagesHowToUse: true,
+  shortDescription: true,
+  longDescription: true,
+  collectionName: true,
+  season: true,
+  sizes: true,
+  productsInCollection: true,
+  unique: true,
+  handmade: true,
+  material: true,
+} as const;
+
+type StoredItemWithoutShopify = Omit<StoredItem, "shopify">;
 
 export async function GET(req: Request) {
   if (!requireAdminSession(req)) {
@@ -119,29 +146,79 @@ export async function POST(req: Request) {
       material,
     });
 
-    const item = await prisma.item.create({
-      data: {
-        name: data.name,
-        shopify: data.shopify,
-        type: data.type,
-        category: data.category,
-        availableColors: JSON.stringify(data.availableColors),
-        matchingPalette: JSON.stringify(data.matchingPalette),
-        imagesAbove: JSON.stringify(data.imagesAbove),
-        imagesDetailed: JSON.stringify(data.imagesDetailed),
-        imagesBackground: JSON.stringify(data.imagesBackground),
-        imagesHowToUse: JSON.stringify(data.imagesHowToUse),
-        shortDescription: data.shortDescription,
-        longDescription: data.longDescription,
-        collectionName: data.collectionName,
-        season: data.season,
-        sizes: JSON.stringify(data.sizes),
-        productsInCollection: data.productsInCollection,
-        unique: data.unique,
-        handmade: data.handmade,
-        material: data.material,
-      } as never,
-    });
+    const id = randomUUID();
+    const updatedAt = new Date();
+    const [item] = await prisma.$queryRaw<StoredItemWithoutShopify[]>`
+      INSERT INTO "Item" (
+        "id",
+        "updatedAt",
+        "name",
+        "type",
+        "category",
+        "availableColors",
+        "matchingPalette",
+        "imagesAbove",
+        "imagesDetailed",
+        "imagesBackground",
+        "imagesHowToUse",
+        "shortDescription",
+        "longDescription",
+        "collectionName",
+        "season",
+        "sizes",
+        "productsInCollection",
+        "unique",
+        "handmade",
+        "material"
+      )
+      VALUES (
+        ${id},
+        ${updatedAt},
+        ${data.name},
+        ${data.type},
+        ${data.category},
+        ${JSON.stringify(data.availableColors)},
+        ${JSON.stringify(data.matchingPalette)},
+        ${JSON.stringify(data.imagesAbove)},
+        ${JSON.stringify(data.imagesDetailed)},
+        ${JSON.stringify(data.imagesBackground)},
+        ${JSON.stringify(data.imagesHowToUse)},
+        ${data.shortDescription},
+        ${data.longDescription},
+        ${data.collectionName},
+        ${data.season},
+        ${JSON.stringify(data.sizes)},
+        ${data.productsInCollection},
+        ${data.unique},
+        ${data.handmade},
+        ${data.material}
+      )
+      RETURNING
+        "id",
+        "updatedAt",
+        "name",
+        "type",
+        "category",
+        "availableColors",
+        "matchingPalette",
+        "imagesAbove",
+        "imagesDetailed",
+        "imagesBackground",
+        "imagesHowToUse",
+        "shortDescription",
+        "longDescription",
+        "collectionName",
+        "season",
+        "sizes",
+        "productsInCollection",
+        "unique",
+        "handmade",
+        "material"
+    `;
+
+    if (!item) {
+      throw new Error("Failed to create item");
+    }
 
     return NextResponse.json(item, { status: 201 });
   } catch (error) {
@@ -164,7 +241,10 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "Missing item id" }, { status: 400 });
     }
 
-    const item = await prisma.item.findUnique({ where: { id } });
+    const item = await prisma.item.findUnique({
+      where: { id },
+      select: itemSelectWithoutShopify,
+    });
     if (!item) {
       return NextResponse.json({ error: "Item not found" }, { status: 404 });
     }
@@ -191,7 +271,10 @@ export async function DELETE(req: Request) {
       }
     }
 
-    const deletedItem = await prisma.item.delete({ where: { id } });
+    const deletedItem = await prisma.item.delete({
+      where: { id },
+      select: itemSelectWithoutShopify,
+    });
 
     return NextResponse.json({
       message: "Item deleted",
@@ -222,7 +305,10 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "Missing item id" }, { status: 400 });
     }
 
-    const existingItem = await prisma.item.findUnique({ where: { id } });
+    const existingItem = await prisma.item.findUnique({
+      where: { id },
+      select: itemSelectWithoutShopify,
+    });
     if (!existingItem) {
       return NextResponse.json({ error: "Item not found" }, { status: 404 });
     }
@@ -272,7 +358,6 @@ export async function PATCH(req: Request) {
       where: { id: data.id },
       data: {
         name: data.name,
-        shopify: data.shopify,
         type: data.type,
         category: data.category,
         availableColors: JSON.stringify(data.availableColors),
@@ -288,6 +373,7 @@ export async function PATCH(req: Request) {
         handmade: data.handmade,
         material: data.material,
       } as never,
+      select: itemSelectWithoutShopify,
     });
 
     return NextResponse.json(updatedItem);
