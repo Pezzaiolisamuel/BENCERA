@@ -12,9 +12,11 @@ import {
   buildItemFormData,
   createItemFormValuesFromItem,
   createEmptyImagePreviewGroups,
+  formatFileSize,
   getImagePreviewCount,
   imageUploadSections,
   initialItemFormValues,
+  maxImageFileSizeBytes,
   maxImagesPerItem,
   type ImagePreview,
   type ImagePreviewGroups,
@@ -57,6 +59,28 @@ function cloneImagePreviewGroups(groups: ImagePreviewGroups) {
 
 function revokePreviewUrls(previews: ImagePreview[]) {
   previews.forEach((preview) => URL.revokeObjectURL(preview.url));
+}
+
+async function readResponsePayload(response: Response) {
+  const contentType = response.headers.get("content-type") || "";
+
+  if (contentType.includes("application/json")) {
+    return response.json();
+  }
+
+  const text = await response.text();
+  return {
+    error: text || response.statusText || "Request failed",
+  };
+}
+
+function getOversizedImageError(files: File[]) {
+  const oversizedFiles = files.filter((file) => file.size > maxImageFileSizeBytes);
+
+  if (!oversizedFiles.length) return null;
+
+  const names = oversizedFiles.map((file) => `${file.name} (${formatFileSize(file.size)})`);
+  return `Image upload is too large. Each image must be ${formatFileSize(maxImageFileSizeBytes)} or smaller: ${names.join(", ")}.`;
 }
 
 export default function AdminPage() {
@@ -276,6 +300,14 @@ export default function AdminPage() {
   ) => {
     const files = event.target.files;
     if (!files) return;
+    const selectedFiles = Array.from(files);
+
+    const oversizedImageError = getOversizedImageError(selectedFiles);
+    if (oversizedImageError) {
+      setFormError(oversizedImageError);
+      event.target.value = "";
+      return;
+    }
 
     const currentImageCount = getImagePreviewCount(imagePreviewGroups);
     const remainingSlots = maxImagesPerItem - currentImageCount;
@@ -289,8 +321,8 @@ export default function AdminPage() {
     const nextPreviews: ImagePreview[] = Array.from(files)
       .slice(0, remainingSlots)
       .map((file) => ({
-      file,
-      url: URL.createObjectURL(file),
+        file,
+        url: URL.createObjectURL(file),
       }));
 
     if (nextPreviews.length < files.length) {
@@ -337,6 +369,14 @@ export default function AdminPage() {
 
     const files = event.target.files;
     if (!files) return;
+    const selectedFiles = Array.from(files);
+
+    const oversizedImageError = getOversizedImageError(selectedFiles);
+    if (oversizedImageError) {
+      setEditFormError(oversizedImageError);
+      event.target.value = "";
+      return;
+    }
 
     const remainingSlots = maxImagesPerItem - (selectedEditItem.images.detailed.length + editDetailedImagePreviews.length);
 
@@ -390,7 +430,7 @@ export default function AdminPage() {
         method: "POST",
         body: buildItemFormData(itemFormValues, imagePreviewGroups),
       });
-      const data = await response.json();
+      const data = await readResponsePayload(response);
 
       if (!response.ok) {
         throw new Error(data.error || "Something went wrong");
@@ -455,7 +495,7 @@ export default function AdminPage() {
         method: "PATCH",
         body: formData,
       });
-      const data = await response.json();
+      const data = await readResponsePayload(response);
 
       if (!response.ok) {
         throw new Error(data.error || "Failed to update item");
@@ -985,7 +1025,8 @@ export default function AdminPage() {
                 Images
               </div>
               <div style={{ fontSize: 12, opacity: 0.65 }}>
-                Maximum {maxImagesPerItem} uploaded images total per item.
+                Maximum {maxImagesPerItem} uploaded images total per item. Each image must be{" "}
+                {formatFileSize(maxImageFileSizeBytes)} or smaller.
               </div>
 
               {imageUploadSections.map((section) => (
