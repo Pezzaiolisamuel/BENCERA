@@ -18,6 +18,7 @@ import {
   initialItemFormValues,
   maxImageFileSizeBytes,
   maxImagesPerItem,
+  maxTotalImageUploadBytes,
   type ImagePreview,
   type ImagePreviewGroups,
   type ItemFormValues,
@@ -81,6 +82,14 @@ function getOversizedImageError(files: File[]) {
 
   const names = oversizedFiles.map((file) => `${file.name} (${formatFileSize(file.size)})`);
   return `Image upload is too large. Each image must be ${formatFileSize(maxImageFileSizeBytes)} or smaller: ${names.join(", ")}.`;
+}
+
+function getTotalImageUploadError(files: File[]) {
+  const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+
+  if (totalSize <= maxTotalImageUploadBytes) return null;
+
+  return `Image upload is too large. The selected images are ${formatFileSize(totalSize)} total, but one upload request can be at most ${formatFileSize(maxTotalImageUploadBytes)}.`;
 }
 
 export default function AdminPage() {
@@ -311,6 +320,23 @@ export default function AdminPage() {
 
     const currentImageCount = getImagePreviewCount(imagePreviewGroups);
     const remainingSlots = maxImagesPerItem - currentImageCount;
+    const currentSelectedFiles = [
+      ...imagePreviewGroups.above,
+      ...imagePreviewGroups.detailed,
+      ...imagePreviewGroups.background,
+      ...imagePreviewGroups.howToUse,
+    ].map((preview) => preview.file);
+    const acceptedFiles = selectedFiles.slice(0, Math.max(remainingSlots, 0));
+    const totalImageUploadError = getTotalImageUploadError([
+      ...currentSelectedFiles,
+      ...acceptedFiles,
+    ]);
+
+    if (totalImageUploadError) {
+      setFormError(totalImageUploadError);
+      event.target.value = "";
+      return;
+    }
 
     if (remainingSlots <= 0) {
       setFormError(`You can upload a maximum of ${maxImagesPerItem} images per item.`);
@@ -318,9 +344,7 @@ export default function AdminPage() {
       return;
     }
 
-    const nextPreviews: ImagePreview[] = Array.from(files)
-      .slice(0, remainingSlots)
-      .map((file) => ({
+    const nextPreviews: ImagePreview[] = acceptedFiles.map((file) => ({
         file,
         url: URL.createObjectURL(file),
       }));
@@ -379,6 +403,17 @@ export default function AdminPage() {
     }
 
     const remainingSlots = maxImagesPerItem - (selectedEditItem.images.detailed.length + editDetailedImagePreviews.length);
+    const acceptedFiles = selectedFiles.slice(0, Math.max(remainingSlots, 0));
+    const totalImageUploadError = getTotalImageUploadError([
+      ...editDetailedImagePreviews.map((preview) => preview.file),
+      ...acceptedFiles,
+    ]);
+
+    if (totalImageUploadError) {
+      setEditFormError(totalImageUploadError);
+      event.target.value = "";
+      return;
+    }
 
     if (remainingSlots <= 0) {
       setEditFormError(`A piece can have a maximum of ${maxImagesPerItem} detailed images.`);
@@ -386,9 +421,7 @@ export default function AdminPage() {
       return;
     }
 
-    const nextPreviews = Array.from(files)
-      .slice(0, remainingSlots)
-      .map((file) => ({
+    const nextPreviews = acceptedFiles.map((file) => ({
         file,
         url: URL.createObjectURL(file),
       }));
@@ -1026,7 +1059,8 @@ export default function AdminPage() {
               </div>
               <div style={{ fontSize: 12, opacity: 0.65 }}>
                 Maximum {maxImagesPerItem} uploaded images total per item. Each image must be{" "}
-                {formatFileSize(maxImageFileSizeBytes)} or smaller.
+                {formatFileSize(maxImageFileSizeBytes)} or smaller. One upload request can be at
+                most {formatFileSize(maxTotalImageUploadBytes)}.
               </div>
 
               {imageUploadSections.map((section) => (

@@ -7,11 +7,38 @@ import { deleteFromCloudinaryByUrl } from "@/lib/cloudinary-delete";
 import { isAdminAuthenticated } from "@/lib/admin-session";
 import { fetchStoredCatalogItems } from "@/lib/catalog-items";
 import { getStoredItemImageUrls } from "@/lib/item-data";
+import {
+  formatFileSize,
+  maxImageFileSizeBytes,
+  maxTotalImageUploadBytes,
+} from "@/lib/admin-item-form";
 import type { StoredItem } from "@/types/item";
 
 async function filesToCloudinaryUrls(files: File[], folder: string) {
   if (!files.length) return [];
   return Promise.all(files.map((file) => uploadFileToCloudinary(file, folder)));
+}
+
+function getImageFiles(formData: FormData, fieldName: string) {
+  return formData
+    .getAll(fieldName)
+    .filter((entry): entry is File => entry instanceof File && entry.size > 0);
+}
+
+function validateImageUploadSize(files: File[]) {
+  const oversizedFile = files.find((file) => file.size > maxImageFileSizeBytes);
+
+  if (oversizedFile) {
+    return `Image upload is too large. Each image must be ${formatFileSize(maxImageFileSizeBytes)} or smaller: ${oversizedFile.name} is ${formatFileSize(oversizedFile.size)}.`;
+  }
+
+  const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+
+  if (totalSize > maxTotalImageUploadBytes) {
+    return `Image upload is too large. The selected images are ${formatFileSize(totalSize)} total, but one upload request can be at most ${formatFileSize(maxTotalImageUploadBytes)}.`;
+  }
+
+  return null;
 }
 
 function splitCommaSeparatedValue(value: unknown) {
@@ -112,10 +139,20 @@ export async function POST(req: Request) {
     const unique = formData.get("unique") === "true" || formData.get("unique") === "on";
     const handmade = formData.get("handmade") === "true" || formData.get("handmade") === "on";
 
-    const imagesAboveFiles = formData.getAll("imagesAbove") as File[];
-    const imagesDetailedFiles = formData.getAll("imagesDetailed") as File[];
-    const imagesBackgroundFiles = formData.getAll("imagesBackground") as File[];
-    const imagesHowToUseFiles = formData.getAll("imagesHowToUse") as File[];
+    const imagesAboveFiles = getImageFiles(formData, "imagesAbove");
+    const imagesDetailedFiles = getImageFiles(formData, "imagesDetailed");
+    const imagesBackgroundFiles = getImageFiles(formData, "imagesBackground");
+    const imagesHowToUseFiles = getImageFiles(formData, "imagesHowToUse");
+    const imageUploadSizeError = validateImageUploadSize([
+      ...imagesAboveFiles,
+      ...imagesDetailedFiles,
+      ...imagesBackgroundFiles,
+      ...imagesHowToUseFiles,
+    ]);
+
+    if (imageUploadSizeError) {
+      return NextResponse.json({ error: imageUploadSizeError }, { status: 413 });
+    }
 
     const [imagesAbove, imagesDetailed, imagesBackground, imagesHowToUse] = await Promise.all([
       filesToCloudinaryUrls(imagesAboveFiles, "bencera/items/above"),
@@ -317,7 +354,13 @@ export async function PATCH(req: Request) {
     const existingImagesDetailed = JSON.parse(existingItem.imagesDetailed || "[]");
     const existingImagesBackground = JSON.parse(existingItem.imagesBackground || "[]");
     const existingImagesHowToUse = JSON.parse(existingItem.imagesHowToUse || "[]");
-    const newDetailedImageFiles = formData.getAll("imagesDetailed") as File[];
+    const newDetailedImageFiles = getImageFiles(formData, "imagesDetailed");
+    const imageUploadSizeError = validateImageUploadSize(newDetailedImageFiles);
+
+    if (imageUploadSizeError) {
+      return NextResponse.json({ error: imageUploadSizeError }, { status: 413 });
+    }
+
     const newDetailedImageUrls = await filesToCloudinaryUrls(
       newDetailedImageFiles,
       "bencera/items/detailed"
