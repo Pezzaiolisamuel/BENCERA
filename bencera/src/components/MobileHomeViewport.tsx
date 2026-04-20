@@ -4,10 +4,12 @@ import { MoveHorizontal } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent, UIEvent } from "react";
 import type { Item } from "@/types/item";
-import styles from "@/app/mobilehome/page.module.css";
+import feedStyles from "@/app/mobilehome/landing-mobile.module.css";
+import mapStyles from "@/app/mobilehome/page.module.css";
 
 type MobileHomeViewportProps = {
   items: Item[];
+  variant?: "feed" | "map";
 };
 
 function getHeroImage(item: Item) {
@@ -28,7 +30,9 @@ function getAnimatedTitleLetters(name: string) {
   }));
 }
 
-export default function MobileHomeViewport({ items }: MobileHomeViewportProps) {
+export default function MobileHomeViewport({ items, variant = "feed" }: MobileHomeViewportProps) {
+  const isMapVariant = variant === "map";
+  const styles = isMapVariant ? mapStyles : feedStyles;
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [visibleSheetItem, setVisibleSheetItem] = useState<Item | null>(null);
   const [sheetDragOffset, setSheetDragOffset] = useState(0);
@@ -56,10 +60,21 @@ export default function MobileHomeViewport({ items }: MobileHomeViewportProps) {
     };
   }, []);
 
+  const feedTiles = useMemo(() => {
+    if (!items.length) return [];
+
+    return Array.from({ length: 5 }, (_, blockIndex) =>
+      items.map((item, itemIndex) => ({
+        key: `${item.id}-${blockIndex}-${itemIndex}`,
+        item,
+      }))
+    ).flat();
+  }, [items]);
+
   const mapTiles = useMemo(() => {
     if (!items.length) return [];
 
-    const columnCount = 9;
+    const columnCount = 21;
     const baseRowCount = Math.max(6, Math.min(items.length, 9));
     const rowCount = baseRowCount * 5;
 
@@ -90,21 +105,24 @@ export default function MobileHomeViewport({ items }: MobileHomeViewportProps) {
     ).flat();
   }, [items]);
 
+  const visibleTiles = isMapVariant ? mapTiles : feedTiles;
+
   useEffect(() => {
     const container = scrollRef.current;
     if (!container || !items.length) return;
 
     requestAnimationFrame(() => {
       const segmentHeight = container.scrollHeight / 5;
-      const segmentWidth = container.scrollWidth / 3;
       container.scrollTop = segmentHeight * 2;
-      container.scrollLeft = segmentWidth;
+
+      if (isMapVariant) {
+        container.scrollLeft = (container.scrollWidth - container.clientWidth) / 2;
+      }
     });
 
     const handleScroll = () => {
       const segmentHeight = container.scrollHeight / 5;
-      const segmentWidth = container.scrollWidth / 3;
-      if (!segmentHeight || !segmentWidth) return;
+      if (!segmentHeight) return;
 
       if (container.scrollTop < segmentHeight * 0.75) {
         container.scrollTop += segmentHeight;
@@ -112,16 +130,13 @@ export default function MobileHomeViewport({ items }: MobileHomeViewportProps) {
         container.scrollTop -= segmentHeight;
       }
 
-      if (container.scrollLeft < segmentWidth * 0.45) {
-        container.scrollLeft += segmentWidth;
-      } else if (container.scrollLeft > segmentWidth * 1.55) {
-        container.scrollLeft -= segmentWidth;
-      }
+      // Horizontal movement stays native on the map variant. Changing scrollLeft mid-swipe
+      // makes mobile browsers feel like they snap into a new view while momentum is active.
     };
 
     container.addEventListener("scroll", handleScroll, { passive: true });
     return () => container.removeEventListener("scroll", handleScroll);
-  }, [items.length, mapTiles.length]);
+  }, [isMapVariant, items.length, visibleTiles.length]);
 
   useEffect(() => {
     const container = scrollRef.current;
@@ -150,7 +165,7 @@ export default function MobileHomeViewport({ items }: MobileHomeViewportProps) {
 
     targets.forEach((target) => observer.observe(target));
     return () => observer.disconnect();
-  }, [mapTiles.length]);
+  }, [styles, visibleTiles.length]);
 
   useEffect(() => {
     const track = detailTrackRef.current;
@@ -267,9 +282,13 @@ export default function MobileHomeViewport({ items }: MobileHomeViewportProps) {
         BENCERA
       </div>
 
-      <main className={styles.map}>
-        {mapTiles.map(({ key, item, style, variant }) => {
+      <main className={isMapVariant ? mapStyles.map : feedStyles.grid}>
+        {visibleTiles.map((tile) => {
+          const { key, item } = tile;
           const heroImage = getHeroImage(item);
+          const mapTile = isMapVariant
+            ? (tile as (typeof mapTiles)[number])
+            : null;
 
           return (
             <button
@@ -286,8 +305,12 @@ export default function MobileHomeViewport({ items }: MobileHomeViewportProps) {
                   setSheetDragOffset(0);
                 });
               }}
-              className={`${styles.itemTile} ${styles[`tileVariant${variant}`]}`}
-              style={style}
+              className={
+                mapTile
+                  ? `${styles.itemTile} ${mapStyles[`tileVariant${mapTile.variant}`]}`
+                  : styles.itemTile
+              }
+              style={mapTile?.style}
             >
               <div className={styles.itemMedia}>
                 {heroImage ? (

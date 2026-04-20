@@ -16,5 +16,5 @@ export default async function MobileHomePage() {
     console.error("MobileHomePage catalog fetch failed:", error);
   }
 
-  return <MobileHomeViewport items={parsedItems} />;
+  return <MobileHomeViewport items={parsedItems} variant="map" />;
 }
