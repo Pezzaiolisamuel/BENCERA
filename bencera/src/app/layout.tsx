@@ -3,6 +3,13 @@ import "./globals.css";
 export const metadata = {
   title: "BENCERA Gallery",
   description: "Gallery app",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon.png", sizes: "48x48", type: "image/png" },
+    ],
+    shortcut: [{ url: "/favicon.ico" }],
+  },
 };
 
 export default function RootLayout({

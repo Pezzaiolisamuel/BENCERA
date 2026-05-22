@@ -24,12 +24,21 @@ body {
   height: 80px;
 
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
 
   padding: 0 30px;
-  background: transparent;
+  background: rgba(255, 255, 255, 0.2);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
   z-index: 20;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-left: 30px;
 }
 
 /* Main stage layer where Canvas lives */
@@ -64,13 +73,32 @@ body {
 /* Keep your existing styles */
 .logo {
   font-size: 2rem;
-  font-weight: bold;
-  margin-left: 30px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.brandIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 20px;
+  object-fit: contain;
+  display: block;
 }
 
 .navIcon {
-  margin-right: 60px;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  height: 40px;
   cursor: pointer;
+  color: rgba(22, 14, 9, 0.88);
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  text-decoration: none;
 }
 
 .plate {

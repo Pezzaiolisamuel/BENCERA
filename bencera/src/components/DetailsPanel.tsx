@@ -1,6 +1,5 @@
 "use client";
 
-import { Images } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import type { Item } from "@/types/item";
@@ -201,12 +200,10 @@ export default function DetailsPanel({ item, onClose }: DetailsPanelProps) {
 
         <a
           href={item.shopify}
-          target="_blank"
-          rel="noreferrer"
           className={styles.purchaseButton}
           aria-label={`View more pictures of ${item.name}`}
         >
-          <Images className={styles.purchaseIcon} aria-hidden="true" strokeWidth={1.8} />
+          MORE IMAGES
         </a>
       </aside>
 

@@ -1,11 +1,17 @@
 "use client";
 
-import { Images, MoveHorizontal } from "lucide-react";
+import { MoveHorizontal } from "lucide-react";
+import { Inter } from "next/font/google";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, PointerEvent as ReactPointerEvent, UIEvent } from "react";
 import type { Item } from "@/types/item";
 import feedStyles from "@/app/mobilehome/landing-mobile.module.css";
 import mapStyles from "@/app/mobilehome/page.module.css";
+
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["500", "700"],
+});
 
 type MobileHomeViewportProps = {
   items: Item[];
@@ -32,6 +38,16 @@ function getAnimatedTitleLetters(name: string) {
 
 const mapZoomLevels = [0.78, 1, 1.24] as const;
 
+function isSafariLikeBrowser() {
+  if (typeof navigator === "undefined") return false;
+
+  const userAgent = navigator.userAgent;
+  const isSafari = /^((?!chrome|android).)*safari/i.test(userAgent);
+  const isIOS = /iPad|iPhone|iPod/.test(userAgent);
+
+  return isSafari || isIOS;
+}
+
 export default function MobileHomeViewport({ items, variant = "feed" }: MobileHomeViewportProps) {
   const isMapVariant = variant === "map";
   const styles = isMapVariant ? mapStyles : feedStyles;
@@ -48,6 +64,7 @@ export default function MobileHomeViewport({ items, variant = "feed" }: MobileHo
   const dragStartYRef = useRef<number | null>(null);
   const dragPointerIdRef = useRef<number | null>(null);
   const dragModeRef = useRef<"pending" | "vertical" | "horizontal" | null>(null);
+  const sheetDragOffsetRef = useRef(0);
   const suppressBackdropClickRef = useRef(false);
 
   useEffect(() => {
@@ -188,6 +205,7 @@ export default function MobileHomeViewport({ items, variant = "feed" }: MobileHo
 
   const closeSheet = (animated = true) => {
     if (!animated) {
+      sheetDragOffsetRef.current = 0;
       setSheetDragOffset(0);
       setIsSheetDragging(false);
       setIsSheetClosing(false);
@@ -200,12 +218,15 @@ export default function MobileHomeViewport({ items, variant = "feed" }: MobileHo
     setIsSheetClosing(true);
     window.requestAnimationFrame(() => {
       const viewportHeight = window.innerHeight || 0;
-      setSheetDragOffset(Math.max(sheetDragOffset, viewportHeight));
+      const closingOffset = Math.max(sheetDragOffsetRef.current, viewportHeight);
+      sheetDragOffsetRef.current = closingOffset;
+      setSheetDragOffset(closingOffset);
     });
 
     window.setTimeout(() => {
       setSelectedItem(null);
       setVisibleSheetItem(null);
+      sheetDragOffsetRef.current = 0;
       setSheetDragOffset(0);
       setIsSheetClosing(false);
     }, 380);
@@ -223,6 +244,7 @@ export default function MobileHomeViewport({ items, variant = "feed" }: MobileHo
     dragStartYRef.current = event.clientY;
     dragPointerIdRef.current = event.pointerId;
     dragModeRef.current = "pending";
+    sheetDragOffsetRef.current = 0;
     suppressBackdropClickRef.current = false;
     setIsSheetDragging(false);
     event.currentTarget.setPointerCapture(event.pointerId);
@@ -253,6 +275,7 @@ export default function MobileHomeViewport({ items, variant = "feed" }: MobileHo
     }
     setIsSheetDragging(true);
     event.preventDefault();
+    sheetDragOffsetRef.current = nextOffset;
     setSheetDragOffset(nextOffset);
   };
 
@@ -260,7 +283,9 @@ export default function MobileHomeViewport({ items, variant = "feed" }: MobileHo
     if (dragStartYRef.current === null || dragPointerIdRef.current !== event.pointerId) return;
 
     const wasVerticalDrag = dragModeRef.current === "vertical";
-    const shouldClose = sheetDragOffset > 140;
+    const finalOffset = Math.max(0, event.clientY - dragStartYRef.current, sheetDragOffsetRef.current);
+    const closeThreshold = isSafariLikeBrowser() ? 70 : 140;
+    const shouldClose = finalOffset > closeThreshold;
     dragStartXRef.current = null;
     dragStartYRef.current = null;
     dragPointerIdRef.current = null;
@@ -276,6 +301,7 @@ export default function MobileHomeViewport({ items, variant = "feed" }: MobileHo
     }
 
     setIsSheetDragging(false);
+    sheetDragOffsetRef.current = 0;
     setSheetDragOffset(0);
   };
 
@@ -289,9 +315,21 @@ export default function MobileHomeViewport({ items, variant = "feed" }: MobileHo
 
   return (
     <div className={styles.page} ref={scrollRef}>
-      <div className={styles.mobileLogo} aria-hidden="true">
-        BENCERA
-      </div>
+      <header
+        className={`${styles.mobileHeader} ${activeItem ? styles.mobileHeaderDetailOpen : ""} ${inter.className}`}
+      >
+        <div className={styles.mobileBrand}>
+          <img className={styles.mobileBrandIcon} src="/brand-icon.png" alt="" width={40} height={40} />
+          <div className={styles.mobileLogo}>Bencera</div>
+        </div>
+        <a
+          className={styles.mobileShopLink}
+          href="https://bencera.myshopify.com/collections/all"
+          aria-label="Open Bencera shop"
+        >
+          Shop All
+        </a>
+      </header>
 
       <main
         className={isMapVariant ? mapStyles.map : feedStyles.grid}
@@ -449,12 +487,10 @@ export default function MobileHomeViewport({ items, variant = "feed" }: MobileHo
 
               <a
                 href={activeItem.shopify}
-                target="_blank"
-                rel="noreferrer"
                 className={styles.purchaseButton}
                 aria-label={`View more pictures of ${activeItem.name}`}
               >
-                <Images className={styles.purchaseIcon} aria-hidden="true" strokeWidth={1.8} />
+                MORE IMAGES
               </a>
 
               {selectedDetailedImages.length > 1 ? (

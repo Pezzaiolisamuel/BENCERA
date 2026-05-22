@@ -16,18 +16,60 @@
   display: none;
 }
 
-.mobileLogo {
+.mobileHeader {
   position: fixed;
   top: 22px;
-  left: 30px;
+  left: 0;
+  right: 0;
   z-index: 95;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 30px;
+  pointer-events: none;
+}
+
+.mobileBrand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.mobileBrandIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 20px;
+  object-fit: contain;
+  display: block;
+  flex: 0 0 auto;
+}
+
+.mobileLogo {
   font-size: 2rem;
   font-weight: 700;
   line-height: 1;
   letter-spacing: 0;
   text-indent: 0;
   color: rgba(29, 20, 13, 0.84);
-  pointer-events: none;
+}
+
+.mobileHeaderDetailOpen .mobileLogo {
+  color: #ffffff;
+}
+
+.mobileShopLink {
+  display: inline-flex;
+  align-items: center;
+  height: 40px;
+  color: rgba(29, 20, 13, 0.84);
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  text-decoration: none;
+  pointer-events: auto;
 }
 
 .grid {
@@ -173,21 +215,24 @@
 
 .purchaseButton {
   flex: 0 0 auto;
-  background: linear-gradient(180deg, #d8b056 0%, #ba8932 100%);
-  display: grid;
-  place-items: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 999px;
-  box-shadow: 0 10px 22px rgba(73, 48, 13, 0.18);
+  background: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 148px;
+  height: 44px;
+  padding: 0 22px;
+  border: 1px solid rgba(29, 20, 13, 0.14);
+  border-radius: 0;
+  box-shadow: 0 10px 22px rgba(73, 48, 13, 0.12);
   opacity: 1;
-}
-
-.purchaseIcon {
-  width: 29px;
-  height: 29px;
-  object-fit: contain;
-  display: block;
+  color: rgba(29, 20, 13, 0.84);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
 }
 
 .sheetStage {
