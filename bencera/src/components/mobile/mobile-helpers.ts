@@ -1,5 +1,18 @@
 import type { CSSProperties } from "react";
 import type { Item } from "@/types/item";
+import { getItemThumbnail } from "@/lib/item-images";
+import {
+  mobileFeedRepeatCount,
+  mobileMapColumnCount,
+  mobileMapLateralDriftPixels,
+  mobileMapMaximumBaseRows,
+  mobileMapMinimumBaseRows,
+  mobileMapOddColumnStaggerPixels,
+  mobileMapRowDriftStepPixels,
+  mobileMapRowMultiplier,
+  mobileTitleBaseDelaySeconds,
+  mobileTitleStaggerDelaySeconds,
+} from "./mobile-config";
 
 export type MobileStyles = Record<string, string>;
 
@@ -16,27 +29,21 @@ export type MapTile = FeedTile & {
 };
 
 export function getMobileHeroImage(item: Item) {
-  return (
-    item.images.above[0] ||
-    item.images.detailed[0] ||
-    item.images.background[0] ||
-    item.images.howToUse[0] ||
-    ""
-  );
+  return getItemThumbnail(item);
 }
 
 export function getAnimatedTitleLetters(name: string) {
   return Array.from(name).map((character, index) => ({
     key: `${character}-${index}`,
     character: character === " " ? "\u00A0" : character,
-    delay: `${0.2 + index * 0.04}s`,
+    delay: `${mobileTitleBaseDelaySeconds + index * mobileTitleStaggerDelaySeconds}s`,
   }));
 }
 
 export function createFeedTiles(items: Item[]): FeedTile[] {
   if (!items.length) return [];
 
-  return Array.from({ length: 5 }, (_, blockIndex) =>
+  return Array.from({ length: mobileFeedRepeatCount }, (_, blockIndex) =>
     items.map((item, itemIndex) => ({
       key: `${item.id}-${blockIndex}-${itemIndex}`,
       item,
@@ -47,18 +54,21 @@ export function createFeedTiles(items: Item[]): FeedTile[] {
 export function createMapTiles(items: Item[]): MapTile[] {
   if (!items.length) return [];
 
-  const columnCount = 21;
-  const baseRowCount = Math.max(6, Math.min(items.length, 9));
-  const rowCount = baseRowCount * 5;
+  const baseRowCount = Math.max(
+    mobileMapMinimumBaseRows,
+    Math.min(items.length, mobileMapMaximumBaseRows)
+  );
+  const rowCount = baseRowCount * mobileMapRowMultiplier;
 
   return Array.from({ length: rowCount }, (_, rowIndex) =>
-    Array.from({ length: columnCount }, (_, columnIndex) => {
+    Array.from({ length: mobileMapColumnCount }, (_, columnIndex) => {
       const itemIndex =
         (rowIndex * 2 + columnIndex * 3 + Math.floor(columnIndex / 2)) % items.length;
       const variant = (rowIndex + columnIndex * 2) % 5;
-      const columnStagger = columnIndex % 2 === 0 ? 0 : 62;
-      const rowDrift = (rowIndex % 3) * 12;
-      const lateralDrift = ((rowIndex + columnIndex) % 3 - 1) * 16;
+      const columnStagger = columnIndex % 2 === 0 ? 0 : mobileMapOddColumnStaggerPixels;
+      const rowDrift = (rowIndex % 3) * mobileMapRowDriftStepPixels;
+      const lateralDrift =
+        ((rowIndex + columnIndex) % 3 - 1) * mobileMapLateralDriftPixels;
 
       return {
         key: `${items[itemIndex].id}-${rowIndex}-${columnIndex}`,

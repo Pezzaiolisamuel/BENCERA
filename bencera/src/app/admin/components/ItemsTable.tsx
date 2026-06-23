@@ -153,8 +153,8 @@ export default function ItemsTable({ items, onDeleteClick, onEditClick }: ItemsT
               <td>{item.season}</td>
               <td>{item.sizes.join(", ")}</td>
               <td>{item.productsInCollection}</td>
-              <td>{item.unique ? "✔" : ""}</td>
-              <td>{item.handmade ? "✔" : ""}</td>
+              <td>{item.unique ? "\u2714" : ""}</td>
+              <td>{item.handmade ? "\u2714" : ""}</td>
               <td>{item.material}</td>
             </tr>
           ))}

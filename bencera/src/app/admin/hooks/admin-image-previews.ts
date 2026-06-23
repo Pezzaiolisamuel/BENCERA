@@ -1,26 +1,10 @@
 import {
-  formatFileSize,
-  maxImageFileSizeBytes,
-  maxTotalImageUploadBytes,
   type ImagePreview,
 } from "@/lib/admin-item-form";
-
-export function getOversizedImageError(files: File[]) {
-  const oversizedFiles = files.filter((file) => file.size > maxImageFileSizeBytes);
-
-  if (!oversizedFiles.length) return null;
-
-  const names = oversizedFiles.map((file) => `${file.name} (${formatFileSize(file.size)})`);
-  return `Image upload is too large. Each image must be ${formatFileSize(maxImageFileSizeBytes)} or smaller: ${names.join(", ")}.`;
-}
-
-export function getTotalImageUploadError(files: File[]) {
-  const totalSize = files.reduce((sum, file) => sum + file.size, 0);
-
-  if (totalSize <= maxTotalImageUploadBytes) return null;
-
-  return `Image upload is too large. The selected images are ${formatFileSize(totalSize)} total, but one upload request can be at most ${formatFileSize(maxTotalImageUploadBytes)}.`;
-}
+export {
+  getOversizedImageError,
+  getTotalImageUploadError,
+} from "@/lib/item-image-validation";
 
 export function createImagePreviews(files: File[]): ImagePreview[] {
   return files.map((file) => ({ file, url: URL.createObjectURL(file) }));

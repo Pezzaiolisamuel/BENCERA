@@ -1,5 +1,5 @@
 import { MoveHorizontal } from "lucide-react";
-import type { PointerEvent as ReactPointerEvent, RefObject, UIEvent } from "react";
+import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
 import type { Item } from "@/types/item";
 import type { MobileStyles } from "./mobile-helpers";
 import { getAnimatedTitleLetters, getMobileHeroImage } from "./mobile-helpers";
@@ -8,7 +8,6 @@ type MobileDetailSheetProps = {
   activeItem: Item;
   detailTrackRef: RefObject<HTMLDivElement | null>;
   handleBackdropClick: () => void;
-  handleDetailTrackScroll: (event: UIEvent<HTMLDivElement>) => void;
   handleSheetPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
   handleSheetPointerEnd: (event: ReactPointerEvent<HTMLDivElement>) => void;
   handleSheetPointerMove: (event: ReactPointerEvent<HTMLDivElement>) => void;
@@ -23,7 +22,6 @@ export default function MobileDetailSheet({
   activeItem,
   detailTrackRef,
   handleBackdropClick,
-  handleDetailTrackScroll,
   handleSheetPointerDown,
   handleSheetPointerEnd,
   handleSheetPointerMove,
@@ -87,11 +85,7 @@ export default function MobileDetailSheet({
         <div className={styles.sheetStage}>
           <div className={styles.sheetBackdropGlow} />
 
-          <div
-            ref={detailTrackRef}
-            className={styles.detailTrack}
-            onScroll={handleDetailTrackScroll}
-          >
+          <div ref={detailTrackRef} className={styles.detailTrack}>
             {selectedDetailedImages.map((image, index) => (
               <div key={`${image}-${index}`} className={styles.detailSlide}>
                 <div className={styles.sheetImageFrame}>

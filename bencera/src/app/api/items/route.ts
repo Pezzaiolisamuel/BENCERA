@@ -1,75 +1,69 @@
 import { NextResponse } from "next/server";
-import { isAdminAuthenticated } from "@/lib/admin-session";
 import { deleteItem, createItemFromFormData, updateItemFromFormData } from "./_lib/item-service";
 import { listItems } from "./_lib/item-repository";
-
-function requireAdminSession(req: Request) {
-  return isAdminAuthenticated(req, process.env.ADMIN_SESSION_SECRET || "");
-}
+import {
+  getDeleteItemId,
+  missingItemIdResponse,
+  operationResultResponse,
+  requireAdminSession,
+  routeErrorResponse,
+  unauthorizedItemsResponse,
+} from "./_lib/route-http";
 
 export async function GET(req: Request) {
   if (!requireAdminSession(req)) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    return unauthorizedItemsResponse();
   }
 
   try {
     const items = await listItems();
     return NextResponse.json(items);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to fetch items";
-    console.error("GET /api/items error:", error);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return routeErrorResponse("GET", error, "Failed to fetch items", 500);
   }
 }
 
 export async function POST(req: Request) {
   if (!requireAdminSession(req)) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    return unauthorizedItemsResponse();
   }
 
   try {
     const result = await createItemFromFormData(await req.formData());
-    return NextResponse.json(result.body, { status: result.status });
+    return operationResultResponse(result);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to create item";
-    console.error("POST /api/items error:", error);
-    return NextResponse.json({ error: message }, { status: 400 });
+    return routeErrorResponse("POST", error, "Failed to create item", 400);
   }
 }
 
 export async function DELETE(req: Request) {
   if (!requireAdminSession(req)) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    return unauthorizedItemsResponse();
   }
 
   try {
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get("id");
+    const id = getDeleteItemId(req);
 
     if (!id) {
-      return NextResponse.json({ error: "Missing item id" }, { status: 400 });
+      return missingItemIdResponse();
     }
 
     const result = await deleteItem(id);
-    return NextResponse.json(result.body, { status: result.status });
+    return operationResultResponse(result);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to delete item";
-    console.error("DELETE /api/items error:", error);
-    return NextResponse.json({ error: message }, { status: 400 });
+    return routeErrorResponse("DELETE", error, "Failed to delete item", 400);
   }
 }
 
 export async function PATCH(req: Request) {
   if (!requireAdminSession(req)) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+    return unauthorizedItemsResponse();
   }
 
   try {
     const result = await updateItemFromFormData(await req.formData());
-    return NextResponse.json(result.body, { status: result.status });
+    return operationResultResponse(result);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to update item";
-    console.error("PATCH /api/items error:", error);
-    return NextResponse.json({ error: message }, { status: 400 });
+    return routeErrorResponse("PATCH", error, "Failed to update item", 400);
   }
 }

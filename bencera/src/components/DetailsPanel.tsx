@@ -4,6 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import type { Item } from "@/types/item";
 import styles from "./DetailsPanel.module.css";
+import DetailsPanelBackdrop from "./details-panel/DetailsPanelBackdrop";
+import DetailsPanelContent from "./details-panel/DetailsPanelContent";
+import DetailsPanelPreview from "./details-panel/DetailsPanelPreview";
 
 type DetailsPanelProps = {
   item: Item | null;
@@ -166,52 +169,22 @@ export default function DetailsPanel({ item, onClose }: DetailsPanelProps) {
 
   return (
     <div className={styles.overlay}>
-      <button
-        type="button"
-        className={styles.backdrop}
-        onClick={requestClose}
-        aria-label="Close details"
+      <DetailsPanelBackdrop onClose={requestClose} />
+
+      <DetailsPanelContent
+        detailImage={detailImage}
+        detailIndex={detailIndex}
+        item={item}
+        onClose={requestClose}
+        onWheel={handlePanelWheel}
+        panelRef={panelRef}
       />
 
-      <aside
-        ref={panelRef}
-        className={styles.panel}
-        onWheel={handlePanelWheel}
-      >
-        <button
-          type="button"
-          onClick={requestClose}
-          aria-label="Close details"
-          className={styles.closeButton}
-        >
-          x
-        </button>
-
-        <div className={styles.imageViewport}>
-          {detailImage ? (
-            <img
-              key={`${item.id}-${detailIndex}`}
-              src={detailImage}
-              alt={`${item.name} detail ${detailIndex + 1}`}
-              className={styles.detailImage}
-            />
-          ) : null}
-        </div>
-
-        <a
-          href={item.shopify}
-          className={styles.purchaseButton}
-          aria-label={`View more pictures of ${item.name}`}
-        >
-          MORE IMAGES
-        </a>
-      </aside>
-
-      {aboveImage ? (
-        <div ref={previewRef} className={styles.previewWrap} aria-hidden="true">
-          <img ref={aboveImageRef} src={aboveImage} alt="" className={styles.previewImage} />
-        </div>
-      ) : null}
+      <DetailsPanelPreview
+        aboveImage={aboveImage}
+        aboveImageRef={aboveImageRef}
+        previewRef={previewRef}
+      />
     </div>
   );
 }

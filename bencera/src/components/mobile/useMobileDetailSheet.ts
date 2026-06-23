@@ -3,7 +3,6 @@ import type {
   Dispatch,
   PointerEvent as ReactPointerEvent,
   SetStateAction,
-  UIEvent,
 } from "react";
 import type { Item } from "@/types/item";
 import { isSafariLikeBrowser } from "./mobile-helpers";
@@ -175,12 +174,6 @@ export function useMobileDetailSheet({
     };
   }, [activeItem, closeSheet]);
 
-  const handleDetailTrackScroll = (event: UIEvent<HTMLDivElement>) => {
-    const container = event.currentTarget;
-    const width = container.clientWidth;
-    if (!width) return;
-  };
-
   const handleSheetPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.pointerType === "touch" && isSafariLikeBrowser()) return;
 
@@ -254,7 +247,6 @@ export function useMobileDetailSheet({
     activeItem,
     detailTrackRef,
     handleBackdropClick,
-    handleDetailTrackScroll,
     handleSheetPointerDown,
     handleSheetPointerEnd,
     handleSheetPointerMove,

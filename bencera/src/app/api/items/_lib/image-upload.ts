@@ -1,10 +1,9 @@
 import "server-only";
 import { uploadFileToCloudinary } from "@/lib/cloudinary";
 import {
-  formatFileSize,
-  maxImageFileSizeBytes,
-  maxTotalImageUploadBytes,
-} from "@/lib/item-image-policy";
+  getSingleOversizedImageError,
+  getTotalImageUploadError,
+} from "@/lib/item-image-validation";
 
 async function filesToCloudinaryUrls(files: File[], folder: string) {
   if (!files.length) return [];
@@ -12,19 +11,7 @@ async function filesToCloudinaryUrls(files: File[], folder: string) {
 }
 
 export function validateImageUploadSize(files: File[]) {
-  const oversizedFile = files.find((file) => file.size > maxImageFileSizeBytes);
-
-  if (oversizedFile) {
-    return `Image upload is too large. Each image must be ${formatFileSize(maxImageFileSizeBytes)} or smaller: ${oversizedFile.name} is ${formatFileSize(oversizedFile.size)}.`;
-  }
-
-  const totalSize = files.reduce((sum, file) => sum + file.size, 0);
-
-  if (totalSize > maxTotalImageUploadBytes) {
-    return `Image upload is too large. The selected images are ${formatFileSize(totalSize)} total, but one upload request can be at most ${formatFileSize(maxTotalImageUploadBytes)}.`;
-  }
-
-  return null;
+  return getSingleOversizedImageError(files) || getTotalImageUploadError(files);
 }
 
 export async function uploadCreateItemImages(files: {

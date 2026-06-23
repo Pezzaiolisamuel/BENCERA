@@ -103,6 +103,13 @@ Domain-specific hooks were preferred over generic form, drag, or CRUD abstractio
 
 Pure deterministic work is separated where reuse is safe: canvas layout/zoom calculations, item image normalization, upload policy, multipart parsing, and item data construction. Browser animation state stays close to its domain, while Prisma and Cloudinary access stays behind server-only boundaries.
 
+## Interview talking points
+
+- The app is split by feature boundary first: `components/canvas`, `components/mobile`, `app/admin`, and `app/api/items/_lib`.
+- Coordinators stay thin: viewport/page/route entry files choose the flow, while hooks and helpers own domain rules.
+- Pure logic moved out before UI churn: item image parsing, upload policy, canvas math, multipart parsing, and validated item payload construction are all isolated from rendering.
+- Server-only concerns stay explicit. Prisma, Cloudinary, and route HTTP helpers are kept behind the API boundary so shared client-safe utilities stay easy to reuse safely.
+
 ## Verification
 
 ```bash
