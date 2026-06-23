@@ -1,0 +1,21 @@
+export const CANVAS_WIDTH = 3000;
+export const CANVAS_HEIGHT = 2000;
+
+export const CANVAS_ITEM_COUNT = 150;
+export const CANVAS_ITEMS_PER_ROW = 15;
+export const CANVAS_MIN_ITEM_SIZE = 180;
+export const CANVAS_MAX_ITEM_SIZE = 420;
+
+export const CANVAS_VERTICAL_MARGIN = 50;
+export const CANVAS_VERTICAL_GAP = 30;
+export const CANVAS_VERTICAL_SIZE_GAP_RATIO = 0.15;
+export const CANVAS_HORIZONTAL_MARGIN = 50;
+export const CANVAS_HORIZONTAL_GAP = 30;
+export const CANVAS_HORIZONTAL_SIZE_GAP_RATIO = 0.25;
+
+export const CANVAS_MAX_SCALE = 4;
+export const CANVAS_FALLBACK_AVERAGE_ITEM_SIZE = 200;
+export const CANVAS_MIN_ZOOM_MULTIPLIER = 1.35;
+export const CANVAS_ZOOM_STEP_COUNT = 3;
+export const CANVAS_EQUAL_ZOOM_STEP_COUNT = 5;
+export const CANVAS_EQUAL_ZOOM_EPSILON = 0.0001;

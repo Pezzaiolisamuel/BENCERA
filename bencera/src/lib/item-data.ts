@@ -1,4 +1,5 @@
 import type { Item, ItemImageKey, StoredItem } from "@/types/item";
+import { parseStringArray } from "@/lib/item-images";
 
 export const itemImageFieldMap: Record<ItemImageKey, keyof StoredItem> = {
   above: "imagesAbove",
@@ -14,18 +15,7 @@ const storedItemImageFieldNames = [
   "imagesHowToUse",
 ] as const;
 
-export function safeParseStringArray(value: string | null | undefined): string[] {
-  if (!value) return [];
-
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed)
-      ? parsed.filter((entry): entry is string => typeof entry === "string")
-      : [];
-  } catch {
-    return [];
-  }
-}
+export const safeParseStringArray = parseStringArray;
 
 type StoredItemLike = Omit<StoredItem, "shopify"> & {
   shopify?: string | null;

@@ -11,11 +11,9 @@ type GalleryViewportProps = {
 };
 
 export default function GalleryViewport({ items }: GalleryViewportProps) {
-  console.log("GalleryViewport items:", items?.length, items?.[0]);
   const canvasRef = useRef<HTMLDivElement>(null);
 
   const [activeItem, setActiveItem] = useState<Item | null>(null);
-  
 
   return (
     <div id="viewport" style={{ position: "fixed", inset: 0, overflow: "hidden" }}>

@@ -16,5 +16,5 @@ export async function uploadFileToCloudinary(file: File, folder: string) {
     resource_type: "image",
   });
 
-  return result.secure_url; // store this in DB
+  return result.secure_url;
 }
