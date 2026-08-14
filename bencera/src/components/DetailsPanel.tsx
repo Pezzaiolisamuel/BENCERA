@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import type { Item } from "@/types/item";
 import styles from "./DetailsPanel.module.css";
@@ -13,6 +13,16 @@ type DetailsPanelProps = {
   onClose: () => void;
 };
 
+type DetailIndexState = {
+  itemId: string;
+  index: number;
+};
+
+type CarouselControlState = {
+  itemId: string;
+  hasUserControlled: boolean;
+};
+
 export default function DetailsPanel({ item, onClose }: DetailsPanelProps) {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const previewRef = useRef<HTMLDivElement | null>(null);
@@ -20,16 +30,56 @@ export default function DetailsPanel({ item, onClose }: DetailsPanelProps) {
   const wheelCooldownRef = useRef<number | null>(null);
   const closeTimeoutRef = useRef<number | null>(null);
 
-  const [detailIndex, setDetailIndex] = useState(0);
+  const [detailIndexState, setDetailIndexState] = useState<DetailIndexState>({
+    itemId: "",
+    index: 0,
+  });
   const [isClosing, setIsClosing] = useState(false);
+  const [carouselControlState, setCarouselControlState] = useState<CarouselControlState>({
+    itemId: "",
+    hasUserControlled: false,
+  });
 
   const detailedImages = useMemo(() => {
     const images = item?.images?.detailed;
     return Array.isArray(images) ? images.filter((src): src is string => !!src) : [];
   }, [item]);
 
+  const detailIndex = item && detailIndexState.itemId === item.id ? detailIndexState.index : 0;
+  const hasUserControlledCarousel =
+    item !== null &&
+    carouselControlState.itemId === item.id &&
+    carouselControlState.hasUserControlled;
   const detailImage = detailedImages[detailIndex] ?? detailedImages[0] ?? null;
   const aboveImage = item?.images?.above?.[0] || null;
+
+  const updateDetailIndex = useCallback((direction: 1 | -1) => {
+    if (!item || detailedImages.length <= 1) return;
+
+    setDetailIndexState((current) => {
+      const currentIndex = current.itemId === item.id ? current.index : 0;
+      const nextIndex = currentIndex + direction;
+
+      if (nextIndex < 0) {
+        return {
+          itemId: item.id,
+          index: detailedImages.length - 1,
+        };
+      }
+
+      if (nextIndex >= detailedImages.length) {
+        return {
+          itemId: item.id,
+          index: 0,
+        };
+      }
+
+      return {
+        itemId: item.id,
+        index: nextIndex,
+      };
+    });
+  }, [detailedImages.length, item]);
 
   useEffect(() => {
     if (!item) return;
@@ -101,6 +151,29 @@ export default function DetailsPanel({ item, onClose }: DetailsPanelProps) {
     };
   }, []);
 
+  useEffect(() => {
+    if (!item || detailedImages.length <= 1 || isClosing) return;
+    if (hasUserControlledCarousel) return;
+
+    const interval = window.setInterval(() => {
+      updateDetailIndex(1);
+    }, 3000);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [item, detailedImages.length, hasUserControlledCarousel, isClosing, updateDetailIndex]);
+
+  const handleCarouselArrowClick = (direction: 1 | -1) => {
+    if (item) {
+      setCarouselControlState({
+        itemId: item.id,
+        hasUserControlled: true,
+      });
+    }
+    updateDetailIndex(direction);
+  };
+
   const requestClose = () => {
     if (isClosing) return;
 
@@ -134,24 +207,6 @@ export default function DetailsPanel({ item, onClose }: DetailsPanelProps) {
     }, 500);
   };
 
-  const updateDetailIndex = (direction: 1 | -1) => {
-    if (detailedImages.length <= 1) return;
-
-    setDetailIndex((current) => {
-      const nextIndex = current + direction;
-
-      if (nextIndex < 0) {
-        return detailedImages.length - 1;
-      }
-
-      if (nextIndex >= detailedImages.length) {
-        return 0;
-      }
-
-      return nextIndex;
-    });
-  };
-
   const handlePanelWheel = (event: React.WheelEvent<HTMLDivElement>) => {
     if (detailedImages.length <= 1) return;
 
@@ -174,8 +229,11 @@ export default function DetailsPanel({ item, onClose }: DetailsPanelProps) {
       <DetailsPanelContent
         detailImage={detailImage}
         detailIndex={detailIndex}
+        detailImageCount={detailedImages.length}
         item={item}
         onClose={requestClose}
+        onNext={() => handleCarouselArrowClick(1)}
+        onPrevious={() => handleCarouselArrowClick(-1)}
         onWheel={handlePanelWheel}
         panelRef={panelRef}
       />

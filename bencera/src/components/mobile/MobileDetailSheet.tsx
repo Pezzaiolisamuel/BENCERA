@@ -1,4 +1,5 @@
 import { MoveHorizontal } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
 import type { Item } from "@/types/item";
 import type { MobileStyles } from "./mobile-helpers";
@@ -18,6 +19,11 @@ type MobileDetailSheetProps = {
   styles: MobileStyles;
 };
 
+type DetailIndexState = {
+  itemId: string;
+  index: number;
+};
+
 export default function MobileDetailSheet({
   activeItem,
   detailTrackRef,
@@ -31,11 +37,63 @@ export default function MobileDetailSheet({
   sheetRef,
   styles,
 }: MobileDetailSheetProps) {
-  const selectedDetailedImages = activeItem.images.detailed.length
-    ? activeItem.images.detailed
-    : [getMobileHeroImage(activeItem)].filter(Boolean);
+  const selectedDetailedImages = useMemo(
+    () =>
+      activeItem.images.detailed.length
+        ? activeItem.images.detailed
+        : [getMobileHeroImage(activeItem)].filter(Boolean),
+    [activeItem]
+  );
   const selectedAboveImage = activeItem.images.above[0] || "";
   const animatedTitleLetters = getAnimatedTitleLetters(activeItem.name);
+  const [detailIndexState, setDetailIndexState] = useState<DetailIndexState>({
+    itemId: activeItem.id,
+    index: 0,
+  });
+  const detailIndex = detailIndexState.itemId === activeItem.id ? detailIndexState.index : 0;
+
+  useEffect(() => {
+    const track = detailTrackRef.current;
+    if (!track || selectedDetailedImages.length <= 1) return;
+
+    const handleScroll = () => {
+      const nextIndex = Math.round(track.scrollLeft / Math.max(track.clientWidth, 1));
+      setDetailIndexState({
+        itemId: activeItem.id,
+        index: Math.min(selectedDetailedImages.length - 1, Math.max(0, nextIndex)),
+      });
+    };
+
+    track.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      track.removeEventListener("scroll", handleScroll);
+    };
+  }, [activeItem.id, detailTrackRef, selectedDetailedImages.length]);
+
+  useEffect(() => {
+    const track = detailTrackRef.current;
+    if (!track || selectedDetailedImages.length <= 1) return;
+
+    const interval = window.setInterval(() => {
+      setDetailIndexState((current) => {
+        const currentIndex = current.itemId === activeItem.id ? current.index : 0;
+        const nextIndex =
+          currentIndex + 1 >= selectedDetailedImages.length ? 0 : currentIndex + 1;
+        track.scrollTo({
+          left: track.clientWidth * nextIndex,
+          behavior: "smooth",
+        });
+        return {
+          itemId: activeItem.id,
+          index: nextIndex,
+        };
+      });
+    }, 3000);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [activeItem.id, detailTrackRef, selectedDetailedImages.length]);
 
   return (
     <>
@@ -65,21 +123,6 @@ export default function MobileDetailSheet({
       >
         <div className={styles.sheetDragArea}>
           <div className={styles.sheetHandle} />
-
-          <div className={styles.sheetHeader}>
-            <h2 key={activeItem.id} className={styles.sheetTitle} aria-label={activeItem.name}>
-              {animatedTitleLetters.map((letter) => (
-                <span
-                  key={letter.key}
-                  className={styles.sheetTitleLetter}
-                  style={{ animationDelay: letter.delay }}
-                  aria-hidden="true"
-                >
-                  {letter.character}
-                </span>
-              ))}
-            </h2>
-          </div>
         </div>
 
         <div className={styles.sheetStage}>
@@ -109,18 +152,46 @@ export default function MobileDetailSheet({
             </div>
           ) : null}
 
+          <div className={styles.sheetHeader}>
+            <h2 key={activeItem.id} className={styles.sheetTitle} aria-label={activeItem.name}>
+              {animatedTitleLetters.map((letter) => (
+                <span
+                  key={letter.key}
+                  className={styles.sheetTitleLetter}
+                  style={{ animationDelay: letter.delay }}
+                  aria-hidden="true"
+                >
+                  {letter.character}
+                </span>
+              ))}
+            </h2>
+          </div>
+
           <a
             href={activeItem.shopify}
             className={styles.purchaseButton}
-            aria-label={`View more pictures of ${activeItem.name}`}
+            aria-label={`View and purchase ${activeItem.name}`}
           >
-            MORE IMAGES
+            View &amp; Purchase
           </a>
 
           {selectedDetailedImages.length > 1 ? (
-            <div className={styles.swipeHint} aria-hidden="true">
-              <MoveHorizontal size={18} />
-            </div>
+            <>
+              <div className={styles.mobileCarouselTracker} aria-label={`Image ${detailIndex + 1} of ${selectedDetailedImages.length}`}>
+                {selectedDetailedImages.map((_, index) => (
+                  <span
+                    key={index}
+                    className={`${styles.mobileCarouselDot} ${
+                      index === detailIndex ? styles.mobileCarouselDotActive : ""
+                    }`}
+                  />
+                ))}
+              </div>
+
+              <div className={styles.swipeHint} aria-hidden="true">
+                <MoveHorizontal size={18} />
+              </div>
+            </>
           ) : null}
         </div>
       </aside>
