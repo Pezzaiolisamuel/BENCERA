@@ -1,5 +1,5 @@
 import { MoveHorizontal } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
 import type { Item } from "@/types/item";
 import type { MobileStyles } from "./mobile-helpers";
@@ -22,6 +22,11 @@ type MobileDetailSheetProps = {
 type DetailIndexState = {
   itemId: string;
   index: number;
+};
+
+type CarouselControlState = {
+  itemId: string;
+  hasUserControlled: boolean;
 };
 
 export default function MobileDetailSheet({
@@ -50,11 +55,42 @@ export default function MobileDetailSheet({
     itemId: activeItem.id,
     index: 0,
   });
+  const [carouselControlState, setCarouselControlState] = useState<CarouselControlState>({
+    itemId: activeItem.id,
+    hasUserControlled: false,
+  });
+  const carouselControlRef = useRef<CarouselControlState>({
+    itemId: activeItem.id,
+    hasUserControlled: false,
+  });
+  const hasUserInteractedWithCarouselRef = useRef(false);
+  const isAutoplayScrollingRef = useRef(false);
+  const autoplayScrollTimeoutRef = useRef<number | null>(null);
   const detailIndex = detailIndexState.itemId === activeItem.id ? detailIndexState.index : 0;
+  const hasUserControlledCarousel =
+    carouselControlState.itemId === activeItem.id && carouselControlState.hasUserControlled;
+
+  const stopCarouselAutoplay = useCallback(() => {
+    hasUserInteractedWithCarouselRef.current = true;
+
+    const nextControlState = {
+      itemId: activeItem.id,
+      hasUserControlled: true,
+    };
+
+    carouselControlRef.current = nextControlState;
+    setCarouselControlState(nextControlState);
+  }, [activeItem.id]);
 
   useEffect(() => {
     const track = detailTrackRef.current;
     if (!track || selectedDetailedImages.length <= 1) return;
+
+    hasUserInteractedWithCarouselRef.current = false;
+    carouselControlRef.current = {
+      itemId: activeItem.id,
+      hasUserControlled: false,
+    };
 
     const handleScroll = () => {
       const nextIndex = Math.round(track.scrollLeft / Math.max(track.clientWidth, 1));
@@ -62,27 +98,62 @@ export default function MobileDetailSheet({
         itemId: activeItem.id,
         index: Math.min(selectedDetailedImages.length - 1, Math.max(0, nextIndex)),
       });
+
+      if (!isAutoplayScrollingRef.current) {
+        stopCarouselAutoplay();
+      }
     };
 
+    track.addEventListener("touchstart", stopCarouselAutoplay, { passive: true });
+    track.addEventListener("pointerdown", stopCarouselAutoplay);
+    track.addEventListener("mousedown", stopCarouselAutoplay);
+    track.addEventListener("wheel", stopCarouselAutoplay, { passive: true });
     track.addEventListener("scroll", handleScroll, { passive: true });
     return () => {
+      track.removeEventListener("touchstart", stopCarouselAutoplay);
+      track.removeEventListener("pointerdown", stopCarouselAutoplay);
+      track.removeEventListener("mousedown", stopCarouselAutoplay);
+      track.removeEventListener("wheel", stopCarouselAutoplay);
       track.removeEventListener("scroll", handleScroll);
     };
-  }, [activeItem.id, detailTrackRef, selectedDetailedImages.length]);
+  }, [activeItem.id, detailTrackRef, selectedDetailedImages.length, stopCarouselAutoplay]);
 
   useEffect(() => {
     const track = detailTrackRef.current;
     if (!track || selectedDetailedImages.length <= 1) return;
+    if (hasUserControlledCarousel) return;
 
     const interval = window.setInterval(() => {
+      if (hasUserInteractedWithCarouselRef.current) {
+        window.clearInterval(interval);
+        return;
+      }
+
+      if (
+        carouselControlRef.current.itemId === activeItem.id &&
+        carouselControlRef.current.hasUserControlled
+      ) {
+        window.clearInterval(interval);
+        return;
+      }
+
       setDetailIndexState((current) => {
         const currentIndex = current.itemId === activeItem.id ? current.index : 0;
         const nextIndex =
           currentIndex + 1 >= selectedDetailedImages.length ? 0 : currentIndex + 1;
+        isAutoplayScrollingRef.current = true;
         track.scrollTo({
           left: track.clientWidth * nextIndex,
           behavior: "smooth",
         });
+
+        if (autoplayScrollTimeoutRef.current !== null) {
+          window.clearTimeout(autoplayScrollTimeoutRef.current);
+        }
+        autoplayScrollTimeoutRef.current = window.setTimeout(() => {
+          isAutoplayScrollingRef.current = false;
+        }, 650);
+
         return {
           itemId: activeItem.id,
           index: nextIndex,
@@ -92,8 +163,13 @@ export default function MobileDetailSheet({
 
     return () => {
       window.clearInterval(interval);
+      if (autoplayScrollTimeoutRef.current !== null) {
+        window.clearTimeout(autoplayScrollTimeoutRef.current);
+        autoplayScrollTimeoutRef.current = null;
+      }
+      isAutoplayScrollingRef.current = false;
     };
-  }, [activeItem.id, detailTrackRef, selectedDetailedImages.length]);
+  }, [activeItem.id, detailTrackRef, hasUserControlledCarousel, selectedDetailedImages.length]);
 
   return (
     <>
@@ -128,7 +204,16 @@ export default function MobileDetailSheet({
         <div className={styles.sheetStage}>
           <div className={styles.sheetBackdropGlow} />
 
-          <div ref={detailTrackRef} className={styles.detailTrack}>
+          <div
+            ref={detailTrackRef}
+            className={styles.detailTrack}
+            onPointerDownCapture={stopCarouselAutoplay}
+            onTouchStartCapture={stopCarouselAutoplay}
+            onWheelCapture={stopCarouselAutoplay}
+            onPointerDown={stopCarouselAutoplay}
+            onTouchStart={stopCarouselAutoplay}
+            onWheel={stopCarouselAutoplay}
+          >
             {selectedDetailedImages.map((image, index) => (
               <div key={`${image}-${index}`} className={styles.detailSlide}>
                 <div className={styles.sheetImageFrame}>
